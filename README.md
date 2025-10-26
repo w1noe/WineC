@@ -103,6 +103,7 @@
 }
 ```
 
+
 使用 packer.nvim：
 
 ```lua
@@ -219,6 +220,10 @@ require("quick-c").setup({
     windows = { c = { "gcc", "cl" }, cpp = { "g++", "cl" } },
     unix    = { c = { "gcc", "clang" }, cpp = { "g++", "clang++" } },
   },
+  compile = { -- 只有当你想使用自定义的工具时才会有效，且仅当 prefer_force = true 时有效
+    prefer = { c = nil, cpp = nil }, -- 就像 c = i686-gcc-elf
+    prefer_force = false,
+  },
   make = {
     prefer = { "make", "mingw32-make" },
     cache = { ttl = 10 },
@@ -226,6 +231,13 @@ require("quick-c").setup({
   },
   diagnostics = {
     quickfix = { open = "warning", jump = "warning", use_telescope = true },
+  },
+  -- 输出目录 outdir："source" 表示写到源文件目录；否则为自定义目录（相对 :pwd 或绝对路径）
+  -- 例：outdir = "source" | "build" | "build/bin" | "C:/tmp/bin"
+  -- 强制选择编译器：可用于交叉编译器或固定工具链名
+  compile = {
+    prefer = { c = "arm-none-eabi-gcc", cpp = "arm-none-eabi-g++" },
+    prefer_force = false,  -- 设为 true 将不检查可执行性，直接调用
   },
   -- 调试可执行文件搜索（当默认路径不存在时）
   debug = {
@@ -526,10 +538,13 @@ require('quick-c').setup({
 - 需要安装并配置 `nvim-dap` 与 `codelldb`
 - `:QuickCDebug` 会以 `codelldb` 方案启动，`program` 指向最近一次构建输出
 
- 
 
-## 🔎 故障排查
+## ❓ 常见问题 / 故障排查
 
+- **可执行文件写到哪里了？**
+  - 由 `outdir` 决定：`"source"` 表示写到源文件所在目录；否则写到你配置的目录（相对 `:pwd` 或绝对路径）。
+  - 示例：`outdir = "build/bin"` 时，`a.c` 将生成 `./build/bin/a.exe`（Windows）或 `./build/bin/a.out`（Unix）。
+  - 若 `QuickCRun/QuickCDebug` 找不到 exe：请确认 `outdir` 设置与期望一致，或在 `debug.search.dirs` 中加入你的产物目录（如 `./build/bin`）。
 - 找不到编译器：请确认 `gcc/g++`、`clang/clang++` 或 `cl` 在 `PATH` 中
 - 构建失败但无输出：查看 Neovim `:messages` 或终端面板中的编译器警告/错误
 - 终端无法发送命令：如安装了 `betterTerm` 但发送失败，插件会自动回退到内置终端
