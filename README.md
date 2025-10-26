@@ -42,6 +42,9 @@
  - 🔧 **Make 集成**：自动发现 Makefile、列出目标、`.PHONY` 优先、参数输入与记忆
   - 🧭 目标解析更稳健：`-qp` 无结果时回退 `-pn`；Windows 兼容路径样式目标
   - 🧪 不可执行 `prefer` 时，解析阶段自动用可用 make（`make`/`mingw32-make`/`nmake`）探测；运行仍按你的 `prefer`
+- 🏗️ **CMake 集成**：自动搜索 CMakeLists、`cmake -S/-B` 配置、`cmake --build` 构建、目标列表（基于 `--target help`）
+  - 视图模式：`both`（默认，流式输出+quickfix）/`quickfix`/`terminal`
+  - 输出面板：`cmake.output.{open,height}` 控制
 - 🔭 **Telescope 增强**：内置 Makefile 预览、源文件多选、快捷切换 .PHONY
 - 🖥️ **BetterTerm/内置终端**：自动选择/复用终端、跨平台兼容
 - 📦 **多文件构建**：支持一次构建/运行多个源文件
@@ -83,11 +86,15 @@
     { "<leader>cqM", desc = "Quick-c: Make targets (Telescope)" },
     { "<leader>cqS", desc = "Quick-c: Select sources (Telescope)" }, -- 使用tab进行多选
     { "<leader>cqf", desc = "Quick-c: Open quickfix (Telescope)" },
+    { "<leader>cqC", desc = "Quick-c: CMake targets (Telescope)" },
+    { "<leader>cqB", desc = "Quick-c: CMake build" },
+    { "<leader>cqc", desc = "Quick-c: CMake configure" },
   },
   -- 3) 命令触发（调用命令时加载，等同“命令提前加载”）
   cmd = {
     "QuickCBuild", "QuickCRun", "QuickCBR", "QuickCDebug",
     "QuickCMake", "QuickCMakeRun", "QuickCMakeCmd",
+    "QuickCCMake", "QuickCCMakeRun", "QuickCCMakeConfigure",
     "QuickCCompileDB", "QuickCCompileDBGen", "QuickCCompileDBUse",
     "QuickCQuickfix", "QuickCCheck",
   },
@@ -146,6 +153,7 @@ use({
 - 命令：
   - `QuickCBuild`/`QuickCRun`/`QuickCBR`/`QuickCDebug`
   - `QuickCMake`/`QuickCMakeRun [target]`
+  - `QuickCCMake`/`QuickCCMakeRun [target]`/`QuickCCMakeConfigure`
   - `QuickCMakeCmd`：自定义完整命令（预填 `<prefer> -C <cwd>`，可编辑后发送到终端）
   - `QuickCCompileDB`/`QuickCCompileDBGen`/`QuickCCompileDBUse`
   - `QuickCQuickfix`：打开 quickfix（优先 Telescope）
@@ -161,6 +169,9 @@ use({
   - `<leader>cqM` Make 目标（Telescope）
   - `<leader>cqS` 源文件选择（Telescope）
   - `<leader>cqf` 打开 quickfix（Telescope）
+  - `<leader>cqC` CMake 目标（Telescope）
+  - `<leader>cqB` CMake 构建
+  - `<leader>cqc` CMake 配置
 
 ## ⚙️ 配置
 
@@ -257,6 +268,26 @@ require("quick-c").setup({
         windows = { c = { "gcc", "cl" }, cpp = { "g++", "cl" } },
         unix    = { c = { "gcc", "clang" }, cpp = { "g++", "clang++" } },
       },
+      -- CMake 配置（默认启用）
+      cmake = {
+        enabled = true,
+        prefer = nil,
+        generator = nil,       -- 例如 "Ninja" | "Unix Makefiles" | ...
+        build_dir = "build",   -- 构建目录（相对项目根）
+        view = 'both',          -- 'both' | 'quickfix' | 'terminal'
+        output = { open = true, height = 12 },
+        search = { up = 2, down = 3, ignore_dirs = { '.git', 'node_modules', '.cache' } },
+        telescope = {
+          prompt_title = "Quick-c CMake Targets",
+          preview = true,
+          max_preview_bytes = 200 * 1024,
+          max_preview_lines = 2000,
+          set_filetype = false,
+          choose_terminal = 'auto',
+        },
+        args = { prompt = true, default = '', remember = true },
+        configure = { extra = {}, toolchain = nil },
+      },
       -- 为 LSP 生成/使用 compile_commands.json（clangd 等）
       compile_commands = {
         -- 'generate' 生成基于当前文件的简单编译数据库；'use' 从指定路径复制
@@ -346,6 +377,7 @@ require("quick-c").setup({
       keymaps = {
         -- 设为 false 可不注入任何默认键位（你可自行映射命令）
         enabled = true,
+        unmap_defaults = true,
         -- 置为 nil 或 '' 可单独禁用某个映射
         build = '<leader>cqb',
         run = '<leader>cqr',
@@ -353,6 +385,11 @@ require("quick-c").setup({
         debug = '<leader>cqD',
         -- 注意：键位注入使用 unique=true，不会覆盖你已有的映射；冲突时跳过
         make = '<leader>cqM',
+        cmake = '<leader>cqC',
+        cmake_run = '<leader>cqB',
+        cmake_configure = '<leader>cqc',
+        sources = '<leader>cqS',
+        quickfix = '<leader>cqf',
       },
     })
   end,

@@ -1,12 +1,3 @@
-    -- Validate configuration (global + project)
-    vim.api.nvim_create_user_command("QuickCCheck", function()
-        local ok_v, V = pcall(require, 'quick-c.config_validate')
-        if not ok_v then
-            vim.notify('Quick-c: config_validate module not found', vim.log.levels.ERROR)
-            return
-        end
-        V.run_and_notify(M.config)
-    end, {})
 local M = {}
 local T = require('quick-c.terminal')
 local U = require('quick-c.util')
@@ -14,6 +5,7 @@ local MS = require('quick-c.make_search')
 local MK = require('quick-c.make')
 local CFG = require('quick-c.config')
 local PROJECT_CONFIG = require('quick-c.project_config')
+local CM = require('quick-c.cmake')
 
 M.config = CFG.defaults
 M.user_opts = {}
@@ -22,6 +14,17 @@ M._reload_timer = nil
 M._suppress_notice_until = 0 -- uv.now() deadline in ms
 
 local function is_windows() return U.is_windows() end
+
+-- CMake helpers
+local function cmake_run_target(target)
+    return CM.run_build_from_current(M.config, target, function(cmd)
+        return T.select_or_run_in_terminal(M.config, is_windows, cmd, notify_warn, notify_err)
+    end)
+end
+
+local function cmake_configure()
+    return CM.configure_from_current(M.config, { err = notify_err, warn = notify_warn, info = notify_info })
+end
 
 -- 异步非阻塞 Makefile 搜索：分批扫描目录，避免卡主线程
 local function find_make_root_async(start_dir, cb)
@@ -235,6 +238,15 @@ function M.setup(opts)
         end
         vim.cmd('copen')
     end, {})
+    -- Validate configuration (global + project)
+    vim.api.nvim_create_user_command("QuickCCheck", function()
+        local ok_v, V = pcall(require, 'quick-c.config_validate')
+        if not ok_v then
+            vim.notify('Quick-c: config_validate module not found', vim.log.levels.ERROR)
+            return
+        end
+        V.run_and_notify(M.config)
+    end, {})
     vim.api.nvim_create_user_command("QuickCMake", function()
         telescope_make()
     end, {})
@@ -244,6 +256,18 @@ function M.setup(opts)
     end, { nargs = "*" })
     vim.api.nvim_create_user_command("QuickCMakeCmd", function()
         make_run_custom_cmd()
+    end, {})
+
+    -- CMake commands
+    vim.api.nvim_create_user_command("QuickCCMake", function()
+        require('quick-c.telescope').telescope_cmake(M.config)
+    end, {})
+    vim.api.nvim_create_user_command("QuickCCMakeRun", function(opts)
+        local target = table.concat(opts.fargs or {}, " ")
+        cmake_run_target(target ~= '' and target or nil)
+    end, { nargs = "*" })
+    vim.api.nvim_create_user_command("QuickCCMakeConfigure", function()
+        cmake_configure()
     end, {})
 
     vim.api.nvim_create_user_command("QuickCReload", function()
@@ -311,6 +335,9 @@ function M.setup(opts)
         build_and_run = build_and_run,
         debug = debug_run,
         make = telescope_make,
+        cmake = function() require('quick-c.telescope').telescope_cmake(M.config) end,
+        cmake_run = function() cmake_run_target(nil) end,
+        cmake_configure = function() cmake_configure() end,
     })
 end
 

@@ -1,5 +1,61 @@
 # Quick-c Release Notes
 
+## v1.5.0 (2025-10-26)
+
+### 新增
+- CMake 支持（自动配置/列出目标/构建）
+  - 新模块：`cmake.lua`（搜索 CMakeLists、`cmake -S/-B` 配置、`cmake --build` 构建、解析 `--target help` 列表）
+  - 新 Telescope 入口：CMake 目标选择器（含“一键配置”）
+  - 新命令：
+    - `QuickCCMake`（打开 CMake 目标选择器）
+    - `QuickCCMakeRun [target]`（构建默认或指定目标）
+    - `QuickCCMakeConfigure`（执行 `cmake -S/-B` 配置）
+  - 新默认键位：
+    - `<leader>cqC`：CMake 目标选择器
+    - `<leader>cqB`：CMake 构建
+    - `<leader>cqc`：CMake 配置
+- 新配置节：`cmake`
+  - `prefer`、`generator`、`build_dir`、`search.{up,down,ignore_dirs}`
+  - `configure.{extra,toolchain}`（传递额外参数与工具链文件）
+  - `args.{prompt,default,remember}`（构建附加参数交互与记忆）
+  - `view`（默认 `both`）：`both` 流式输出+quickfix；`quickfix` 仅 quickfix；`terminal` 仅终端
+  - `output.{open,height}`：both 模式输出面板是否自动打开与高度
+
+### 改进
+- 键位系统扩展：支持 CMake 专用键位，遵循 `keymaps.unmap_defaults` 的卸载逻辑。
+- 终端集成：CMake 构建命令沿用现有终端选择与发送策略。
+
+### 修复
+- 无。
+
+### 文档
+- 默认配置中补充了 CMake 配置与键位注释。
+
+### 兼容性
+- 无破坏性变更；CMake 功能默认启用，仅在检测到 `CMakeLists.txt` 时触发。
+- 新增默认键位不改变既有键位；可通过 `setup({ keymaps = { ... } })` 覆盖或禁用。
+
+### 迁移指南
+- 无需迁移。建议：
+  - 使用 `QuickCCMake` 与 `QuickCCMakeRun` 在 CMake 项目中进行构建；
+  - 通过 `cmake.configure.extra` 设置如 `-DCMAKE_BUILD_TYPE=Debug`；
+  - 如需自定义键位，使用 `setup({ keymaps = { cmake = ..., cmake_run = ..., cmake_configure = ... } })`。
+
+## v1.4.1 (2025-10-26)
+
+### 修复
+- 避免在 `prefer` 不可执行时直接 `jobstart` 触发 E475，增加可执行性与路径存在性保护。
+- 将 `QuickCCheck` 命令注册移动到 `setup()` 内，避免模块初始化次序导致的潜在作用域问题。
+
+### 兼容性
+- 无破坏性变更；本次为稳健性与体验优化。
+
+### 迁移指南
+- 无需迁移。建议：
+  - 使用 `QuickCCheck` 自检配置；
+  - 需要自定义整行命令时使用 `QuickCMakeCmd`；
+  - 如你修改键位，保留默认的 `keymaps.unmap_defaults = true` 可自动移除旧键位。
+
 ## v1.4.0 (2025-10-26)
 
 ### 新增
