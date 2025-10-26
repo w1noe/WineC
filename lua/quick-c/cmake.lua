@@ -206,12 +206,29 @@ function M.build_in_root(config, root, target, run_terminal)
         local outcfg = (config.cmake and config.cmake.output) or {}
         local open = (outcfg.open ~= false)
         local height = tonumber(outcfg.height) or 12
-        outbuf = vim.api.nvim_create_buf(true, false)
-        pcall(vim.api.nvim_buf_set_name, outbuf, 'Quick-c: CMake Output')
+        local name = 'Quick-c: CMake Output'
+        local bufnr = vim.fn.bufnr(name)
+        if bufnr == -1 or not vim.api.nvim_buf_is_valid(bufnr) then
+          outbuf = vim.api.nvim_create_buf(true, false)
+          pcall(vim.api.nvim_buf_set_name, outbuf, name)
+        else
+          outbuf = bufnr
+          -- 清空旧内容
+          pcall(vim.api.nvim_buf_set_lines, outbuf, 0, -1, false, {})
+        end
+        -- 设置 buffer 选项
+        pcall(vim.api.nvim_buf_set_option, outbuf, 'buftype', 'nofile')
+        pcall(vim.api.nvim_buf_set_option, outbuf, 'bufhidden', 'wipe')
+        pcall(vim.api.nvim_buf_set_option, outbuf, 'swapfile', false)
         if open then
-          vim.cmd('botright ' .. height .. 'split')
-          outwin = vim.api.nvim_get_current_win()
-          vim.api.nvim_win_set_buf(outwin, outbuf)
+          local winid = vim.fn.bufwinnr(outbuf)
+          if winid ~= -1 then
+            outwin = vim.fn.win_getid(winid)
+          else
+            vim.cmd('botright ' .. height .. 'split')
+            outwin = vim.api.nvim_get_current_win()
+            vim.api.nvim_win_set_buf(outwin, outbuf)
+          end
         end
       end
       local function append_lines(chunk)
@@ -232,42 +249,7 @@ function M.build_in_root(config, root, target, run_terminal)
         on_stderr = function(_, d) append_lines(d) end,
         on_exit = function(_, code)
           -- parse diagnostics (gcc/clang/msvc)
-          local function parse_diagnostics(lines)
-            local items, has_error, has_warning = {}, false, false
-            local function clean_path(p)
-              if not p or p == '' then return p end
-              p = p:gsub('^%s+', ''):gsub('%s+$', '')
-              p = p:gsub('^"(.+)"$', '%1'):gsub("^'(.-)'$", '%1')
-              return p
-            end
-            for _, l in ipairs(lines or {}) do
-              if type(l) ~= 'string' or l == '' then goto continue end
-              local f, ln, col, typ, msg = l:match("^(.+):(%d+):(%d+):%s*(%w+)%s*:%s*(.+)$")
-              if f then
-                local it = { filename = clean_path(f), lnum = tonumber(ln), col = tonumber(col), text = msg, type = (typ == 'error' and 'E' or 'W') }
-                if it.type == 'E' then has_error = true else has_warning = true end
-                table.insert(items, it)
-                goto continue
-              end
-              local f2, ln2, typ2, msg2 = l:match("^(.+):(%d+):%s*(%w+)%s*:%s*(.+)$")
-              if f2 then
-                local it = { filename = clean_path(f2), lnum = tonumber(ln2), col = 1, text = msg2, type = (typ2 == 'error' and 'E' or 'W') }
-                if it.type == 'E' then has_error = true else has_warning = true end
-                table.insert(items, it)
-                goto continue
-              end
-              local fm, lnm, typm, msgm = l:match("^%s*(.-)%((%d+)%)%s*:%s*(%w+)[^:]*:%s*(.+)$")
-              if fm then
-                local it = { filename = clean_path(fm), lnum = tonumber(lnm), col = 1, text = msgm, type = (typm:lower() == 'error' and 'E' or 'W') }
-                if it.type == 'E' then has_error = true else has_warning = true end
-                table.insert(items, it)
-                goto continue
-              end
-              ::continue::
-            end
-            return items, has_error, has_warning
-          end
-          local items, has_error, has_warning = parse_diagnostics(all)
+          local items, has_error, has_warning = U.parse_diagnostics(all)
           if #items > 0 then
             vim.fn.setqflist({}, ' ', { title = 'Quick-c CMake Build', items = items })
             local function should_open()
@@ -335,10 +317,12 @@ function M.run_build_from_current(config, target, run_terminal)
 end
 
 function M.configure_from_current(config, notify)
+  local ninfo = (type(notify) == 'table' and notify.info) or U.notify_info
+  local nerr = (type(notify) == 'table' and notify.err) or U.notify_err
   local base = vim.fn.fnamemodify(vim.fn.expand('%:p'), ':h')
   resolve_root_async(config, base, function(root)
     M.ensure_configured_async(config, root, function(ok)
-      if ok then notify.info('CMake 配置完成') else notify.err('CMake 配置失败') end
+      if ok then ninfo('CMake 配置完成') else nerr('CMake 配置失败') end
     end)
   end)
 end

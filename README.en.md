@@ -352,6 +352,13 @@ require('quick-c').setup({
 })
 ```
 
+### CMake terminal selection
+
+- Terminal selection for CMake targets/build is controlled by `cmake.telescope.choose_terminal` (same semantics as `make.telescope.choose_terminal`):
+  - `auto`: if a terminal is open, show a selector; otherwise use the default strategy (BetterTerm first, fallback to native)
+  - `always`: always show the selector
+  - `never`: always use the default strategy
+
 ## 📚 Telescope preview notes
 
 - Both directory and target pickers include a Makefile preview with improved Windows path compatibility.

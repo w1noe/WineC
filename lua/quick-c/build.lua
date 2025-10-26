@@ -107,48 +107,7 @@ local function resolve_out_path(config, sources, name)
 end
 
 -- Parse compiler diagnostics (gcc/clang/msvc) into quickfix items
-local function parse_diagnostics(lines)
-  local items = {}
-  local has_error = false
-  local has_warning = false
-  local function clean_path(p)
-    if not p or p == '' then return p end
-    -- trim spaces and surrounding quotes
-    p = p:gsub('^%s+', ''):gsub('%s+$', '')
-    p = p:gsub('^"(.+)"$', '%1'):gsub("^'(.-)'$", '%1')
-    return p
-  end
-  for _, l in ipairs(lines or {}) do
-    if type(l) ~= 'string' or l == '' then goto continue end
-    -- gcc/clang with column: file:line:col: type: message
-    -- allow Windows drive letters and colons in paths by making filename greedy
-    local f, ln, col, typ, msg = l:match("^(.+):(%d+):(%d+):%s*(%w+)%s*:%s*(.+)$")
-    if f then
-      local it = { filename = clean_path(f), lnum = tonumber(ln), col = tonumber(col), text = msg, type = (typ == 'error' and 'E' or 'W') }
-      if it.type == 'E' then has_error = true else has_warning = true end
-      table.insert(items, it)
-      goto continue
-    end
-    -- gcc/clang without column: file:line: type: message
-    local f2, ln2, typ2, msg2 = l:match("^(.+):(%d+):%s*(%w+)%s*:%s*(.+)$")
-    if f2 then
-      local it = { filename = clean_path(f2), lnum = tonumber(ln2), col = 1, text = msg2, type = (typ2 == 'error' and 'E' or 'W') }
-      if it.type == 'E' then has_error = true else has_warning = true end
-      table.insert(items, it)
-      goto continue
-    end
-    -- MSVC cl: file(line) : type Cxxxx: message
-    local fm, lnm, typm, msgm = l:match("^%s*(.-)%((%d+)%)%s*:%s*(%w+)[^:]*:%s*(.+)$")
-    if fm then
-      local it = { filename = clean_path(fm), lnum = tonumber(lnm), col = 1, text = msgm, type = (typm:lower() == 'error' and 'E' or 'W') }
-      if it.type == 'E' then has_error = true else has_warning = true end
-      table.insert(items, it)
-      goto continue
-    end
-    ::continue::
-  end
-  return items, has_error, has_warning
-end
+-- use U.parse_diagnostics
 
 function B.get_output_name_async(config, sources, preset_name, cb, default_override)
   local is_win = U.is_windows()
@@ -219,7 +178,7 @@ function B.build(config, notify, opts)
         for _, s in ipairs(all_stdout) do table.insert(lines, s) end
         for _, s in ipairs(all_stderr) do table.insert(lines, s) end
         if qf_enabled and #lines > 0 then
-          local items, has_error, has_warning = parse_diagnostics(lines)
+          local items, has_error, has_warning = U.parse_diagnostics(lines)
           if #items > 0 then
             vim.fn.setqflist({}, ' ', { title = 'Quick-c Build', items = items })
             local function should_open()

@@ -158,6 +158,7 @@ use({
   - `QuickCCompileDB`/`QuickCCompileDBGen`/`QuickCCompileDBUse`
   - `QuickCQuickfix`：打开 quickfix（优先 Telescope）
   - `QuickCCheck`：检查配置（类型/路径/可执行性）并输出报告
+  - `QuickCHealth`：环境健康检查（依赖探测与建议）
   - `QuickCReload`：重新计算默认+用户+项目配置
   - `QuickCConfig`：打印生效配置与项目配置路径
 
@@ -283,13 +284,7 @@ require("quick-c").setup({
           max_preview_bytes = 200 * 1024,
           max_preview_lines = 2000,
           set_filetype = false,
-          choose_terminal = 'auto',
-        },
-        args = { prompt = true, default = '', remember = true },
-        configure = { extra = {}, toolchain = nil },
-      },
-      -- 为 LSP 生成/使用 compile_commands.json（clangd 等）
-      compile_commands = {
+          -- 发送命令到终端时的选择行为
         -- 'generate' 生成基于当前文件的简单编译数据库；'use' 从指定路径复制
         mode = 'generate',
         -- 输出位置：'source' 表示写入到当前源文件所在目录
@@ -395,6 +390,13 @@ require("quick-c").setup({
   end,
 }
 ```
+
+### CMake 终端选择说明
+
+- CMake 目标/构建发送到终端的行为由 `cmake.telescope.choose_terminal` 控制，语义与 `make.telescope.choose_terminal` 一致：
+  - `auto`：已打开终端时弹选择器，否则使用默认策略（betterTerm 优先，失败回退内置）
+  - `always`：总是弹出选择器
+  - `never`：总是使用默认策略
 
 自定义示例：指定固定输出目录，并优先使用 `clang/clang++`：
 

@@ -4,6 +4,8 @@
 
 ### 修复
 - 移除 `cmake.lua` 末尾冗余导出（`M.list_targets_async = M.list_targets_async`），避免阅读混淆。
+- `QuickCCMakeConfigure`（`<leader>cqc`）在部分环境下因 `notify.info` 为空导致报错的问题：
+  - 为 `configure_from_current` 增加 `notify` 兜底（缺失时回退到 `U.notify_*`）。
 
 ### 一致性
 - 统一诊断默认值：`diagnostics.quickfix.open/jump` 默认改为 `warning`，与 README 描述一致。
@@ -19,12 +21,17 @@
 
 ### 文档
 - 英文 README 同步 CMake 功能、命令与键位、配置节与视图模式，新增 `QuickCHealth` 说明。
+- 中/英文 README 补充 `cmake.telescope.choose_terminal` 的说明。
 
 ### 兼容性
 - 无破坏性变更。默认行为趋于与文档一致。
 
 ### 迁移指南
 - 无需迁移。如有自定义诊断策略，请根据需要覆盖 `diagnostics.quickfix.{open,jump}`。
+
+### 其它改进
+- CMake both 模式输出面板复用固定 buffer，并设置 `buftype=nofile`/`bufhidden=wipe`/`swapfile=false`。
+- 诊断解析抽取到 `util.parse_diagnostics`，`build.lua`/`cmake.lua` 统一复用。
 
 ## v1.5.0 (2025-10-26)
 
