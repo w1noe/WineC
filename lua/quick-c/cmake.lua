@@ -8,6 +8,17 @@ local _cache = {
 local function _now()
   return vim.loop.now() / 1000
 end
+
+local function _config_stamp(bdir)
+  local uv = vim.loop
+  local cache = U.join(bdir, 'CMakeCache.txt')
+  local st = uv.fs_stat(cache)
+  if st and st.mtime then return tostring(st.mtime.sec or st.mtime) end
+  local dir = U.join(bdir, 'CMakeFiles')
+  st = uv.fs_stat(dir)
+  if st and st.mtime then return tostring(st.mtime.sec or st.mtime) end
+  return '0'
+end
 local function _ttl()
   return 10
 end
@@ -353,8 +364,9 @@ function M.list_targets_async(config, root, cb)
   M.ensure_configured_async(config, root, function(ok, bdir)
     if not ok then cb({}) return end
     local k = U.norm(bdir)
+    local cur_stamp = _config_stamp(bdir)
     local ent = _cache.targets[k]
-    if ent and (_now() - ent.t) < _ttl() then cb(ent.v) return end
+    if ent and ent.stamp == cur_stamp and (_now() - ent.t) < _ttl() then cb(ent.v) return end
     local cmd = { choose_cmake(config) or 'cmake', '--build', bdir, '--target', 'help' }
     local lines = {}
     local jid = vim.fn.jobstart(cmd, {
@@ -364,7 +376,7 @@ function M.list_targets_async(config, root, cb)
       on_stderr = function(_, d) if d then for _, l in ipairs(d) do table.insert(lines, l) end end end,
       on_exit = function()
         local targets = parse_targets_from_help(lines)
-        _cache.targets[k] = { v = targets, t = _now() }
+        _cache.targets[k] = { v = targets, t = _now(), stamp = cur_stamp }
         cb(targets)
       end,
     })

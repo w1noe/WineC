@@ -12,6 +12,7 @@
 
 ### 性能/缓存
 - CMake：为根目录搜索与目标列表新增 TTL 缓存（默认 10s），减少重复 IO 与命令调用。
+- CMake：目标列表缓存增加失效判断，基于 `CMakeCache.txt` 或 `CMakeFiles/` 的 mtime 变化自动失效。
 
 ### 新增
 - 健康检查命令：`QuickCHealth` 输出基础依赖探测结果与诊断策略摘要。
@@ -32,6 +33,9 @@
 ### 其它改进
 - CMake both 模式输出面板复用固定 buffer，并设置 `buftype=nofile`/`bufhidden=wipe`/`swapfile=false`。
 - 诊断解析抽取到 `util.parse_diagnostics`，`build.lua`/`cmake.lua` 统一复用。
+- Telescope 空状态提示：
+  - Make 目标为空时，展示友好提示与排查建议。
+  - CMake 目标为空时，提供“[配置]”入口与生成器/配置提示。
 
 ## v1.5.0 (2025-10-26)
 
