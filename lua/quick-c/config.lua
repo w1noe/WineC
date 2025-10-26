@@ -88,6 +88,11 @@ C.defaults = {
     prefer = nil, -- 指定 cmake 可执行程序路径或名称
     generator = nil, -- 例如 "Ninja" | "Unix Makefiles" | "MinGW Makefiles" | "NMake Makefiles"
     build_dir = "build", -- 构建目录，默认在项目根目录下
+    view = 'both', -- 构建输出视图：'quickfix' | 'terminal' | 'both'
+    output = {
+      open = true,  -- both 模式下是否自动打开输出面板
+      height = 12,  -- 输出面板高度
+    },
     search = { up = 2, down = 3, ignore_dirs = { '.git', 'node_modules', '.cache' } },
     telescope = {
       prompt_title = "Quick-c CMake Targets",

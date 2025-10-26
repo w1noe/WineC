@@ -179,17 +179,43 @@ function M.build_in_root(config, root, target, run_terminal)
       local args = cmake_build_cmd(config, bdir, target, arg_extra or '')
       local diagcfg = (config.diagnostics and config.diagnostics.quickfix) or {}
       local qf_enabled = (diagcfg.enabled ~= false)
-      if not qf_enabled then
+      local view = (config.cmake and config.cmake.view) or 'quickfix'
+      if (view == 'terminal') or (not qf_enabled) then
         local cmdline = table.concat(args, ' ')
         run_terminal(cmdline)
         return
       end
       local all = {}
+      local view_mode = view -- 'quickfix' | 'both'
+      local outbuf, outwin
+      if view_mode == 'both' then
+        local outcfg = (config.cmake and config.cmake.output) or {}
+        local open = (outcfg.open ~= false)
+        local height = tonumber(outcfg.height) or 12
+        outbuf = vim.api.nvim_create_buf(true, false)
+        pcall(vim.api.nvim_buf_set_name, outbuf, 'Quick-c: CMake Output')
+        if open then
+          vim.cmd('botright ' .. height .. 'split')
+          outwin = vim.api.nvim_get_current_win()
+          vim.api.nvim_win_set_buf(outwin, outbuf)
+        end
+      end
+      local function append_lines(chunk)
+        if not chunk or #chunk == 0 then return end
+        for _, l in ipairs(chunk) do table.insert(all, l) end
+        if outbuf and vim.api.nvim_buf_is_valid(outbuf) then
+          local existing = vim.api.nvim_buf_line_count(outbuf)
+          vim.api.nvim_buf_set_lines(outbuf, existing, existing, false, chunk)
+          if outwin and vim.api.nvim_win_is_valid(outwin) then
+            vim.api.nvim_win_set_cursor(outwin, { vim.api.nvim_buf_line_count(outbuf), 0 })
+          end
+        end
+      end
       local jid = vim.fn.jobstart(args, {
-        stdout_buffered = true,
-        stderr_buffered = true,
-        on_stdout = function(_, d) if d then for _, l in ipairs(d) do table.insert(all, l) end end end,
-        on_stderr = function(_, d) if d then for _, l in ipairs(d) do table.insert(all, l) end end end,
+        stdout_buffered = false,
+        stderr_buffered = false,
+        on_stdout = function(_, d) append_lines(d) end,
+        on_stderr = function(_, d) append_lines(d) end,
         on_exit = function(_, code)
           -- parse diagnostics (gcc/clang/msvc)
           local function parse_diagnostics(lines)
