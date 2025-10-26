@@ -58,6 +58,14 @@ C.defaults = {
     focus_on_run = true,
     open_if_closed = true,
   },
+  debug = {
+    search = {
+      up = 2,
+      down = 2,
+      ignore_dirs = { '.git', 'node_modules', '.cache' },
+    },
+    concurrency = 8,
+  },
   make = {
     enabled = true,
     prefer = nil, -- 可为字符串或列表，例如 "make" | "mingw32-make" | { "make", "mingw32-make" }

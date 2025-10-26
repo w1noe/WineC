@@ -2,6 +2,7 @@ local U = require('quick-c.util')
 local T = require('quick-c.terminal')
 local B = {}
 local NAME_CACHE = {}
+local LAST_EXE = {}
 
 local function ensure_outdir(dir)
   vim.fn.mkdir(dir, 'p')
@@ -53,6 +54,110 @@ local function default_out_name(is_win, sources)
     if is_win and not name:match('%.exe$') then name = name .. '.exe' end
     return name
   end
+end
+
+local function scandir_files(dir)
+  local uv = vim.loop
+  local ok, req = pcall(uv.fs_scandir, dir)
+  if not ok or not req then return {} end
+  local out = {}
+  while true do
+    local name, t = uv.fs_scandir_next(req)
+    if not name then break end
+    if t == 'file' then table.insert(out, U.join(dir, name)) end
+  end
+  return out
+end
+
+-- Async parallel BFS to discover candidate executables
+local function discover_candidates_async(config, is_win, start_dir, cb)
+  local dbg = (config.debug or {})
+  local search = dbg.search or {}
+  local up = tonumber(search.up) or 2
+  local down = tonumber(search.down) or 2
+  local ignore = search.ignore_dirs or { '.git', 'node_modules', '.cache' }
+  local concurrency = tonumber(dbg.concurrency) or 8
+  local uv = vim.loop
+  local seen_dir = {}
+  local function is_ignored(name)
+    for _, n in ipairs(ignore) do if n == name then return true end end
+    return false
+  end
+  local function parent(dir)
+    local p = vim.fn.fnamemodify(dir, ':h')
+    if p == nil or p == '' then return dir end
+    return p
+  end
+  local bases = {}
+  do
+    local cur = start_dir
+    for _ = 0, up do
+      table.insert(bases, cur)
+      local nextp = parent(cur); if nextp == cur then break end
+      cur = nextp
+    end
+  end
+  local cwd = vim.fn.getcwd()
+  for _, d in ipairs({ 'build', 'bin', 'out' }) do table.insert(bases, U.join(cwd, d)) end
+  local outdir = config.outdir
+  if outdir and outdir ~= '' and outdir ~= 'source' then table.insert(bases, outdir) end
+
+  local queue = {}
+  for _, b in ipairs(bases) do table.insert(queue, { dir = b, depth = 0 }) end
+  local active = 0
+  local candidates = {}
+  local seen_file = {}
+  local function add_file(p)
+    local abs = vim.fn.fnamemodify(p, ':p')
+    if vim.fn.filereadable(abs) == 1 and not seen_file[abs] then
+      seen_file[abs] = true
+      table.insert(candidates, abs)
+    end
+  end
+  local function handle_dir(dir, depth)
+    active = active + 1
+    uv.fs_scandir(dir, function(err, req)
+      if not err and req then
+        while true do
+          local name, t = uv.fs_scandir_next(req)
+          if not name then break end
+          if t == 'file' then
+            local p = U.join(dir, name)
+            if is_win then
+              if name:lower():match('%.exe$') then add_file(p) end
+            else
+              if name == 'a.out' or not name:match('%.%w+$') then add_file(p) end
+            end
+          elseif t == 'directory' and depth < down then
+            if not is_ignored(name) then
+              local sub = U.join(dir, name)
+              local key = U.norm(sub)
+              if not seen_dir[key] then seen_dir[key] = true; table.insert(queue, { dir = sub, depth = depth + 1 }) end
+            else
+              -- first-layer probe of ignored dir root
+              local sub = U.join(dir, name)
+              local key = U.norm(sub)
+              if not seen_dir[key] then seen_dir[key] = true; table.insert(queue, { dir = sub, depth = depth + 1 }) end
+            end
+          end
+        end
+      end
+      active = active - 1
+      vim.schedule(function()
+        while active < concurrency and #queue > 0 do
+          local item = table.remove(queue, 1)
+          handle_dir(item.dir, item.depth)
+        end
+        if active == 0 and #queue == 0 then cb(candidates) end
+      end)
+    end)
+  end
+  -- start workers
+  for i = 1, math.min(concurrency, #queue) do
+    local item = table.remove(queue, 1)
+    handle_dir(item.dir, item.depth)
+  end
+  if #queue == 0 and active == 0 then cb(candidates) end
 end
 
 local function choose_compiler(config, is_win, ft)
@@ -217,6 +322,11 @@ function B.build(config, notify, opts)
           end
         end
         if code == 0 then notify.info('Build OK -> ' .. exe) else notify.err('Build failed (' .. code .. ')') end
+        if code == 0 then
+          -- remember last built exe per project root
+          local root = vim.fn.getcwd()
+          LAST_EXE[U.norm(root)] = exe
+        end
         if opts.on_exit then pcall(opts.on_exit, code, exe) end
       end,
     })
@@ -270,8 +380,81 @@ function B.debug_run(config, notify, exe)
   local cur = { vim.fn.expand('%:p') }
   local is_win = U.is_windows()
   exe = exe or resolve_out_path(config, cur, default_out_name(is_win, cur))
+  -- Prefer the most recent successful build exe in this project
+  do
+    local key = U.norm(vim.fn.getcwd())
+    local cached = LAST_EXE[key]
+    if (not exe or vim.fn.filereadable(exe) ~= 1) and cached and vim.fn.filereadable(cached) == 1 then
+      exe = cached
+    end
+  end
   if vim.fn.filereadable(exe) ~= 1 then
-    notify.warn('未找到可执行文件，请先构建')
+    -- Try to discover candidates asynchronously and let user pick one
+    local cur_dir = vim.fn.fnamemodify(cur[1], ':p:h')
+    discover_candidates_async(config, is_win, cur_dir, function(cand)
+      if not cand or #cand == 0 then notify.warn('未找到可执行文件，请先构建'); return end
+    local function start_debug(sel)
+      if not sel or sel == '' then return end
+      exe = sel
+      -- fall through to dap.run below
+      local ok, dap = pcall(require, 'dap')
+      if not ok then notify.err('未找到 nvim-dap'); return end
+      dap.run({
+        type = 'codelldb',
+        request = 'launch',
+        name = 'Quick-c Debug',
+        program = exe,
+        cwd = vim.fn.getcwd(),
+        stopOnEntry = false,
+        runInTerminal = true,
+        initCommands = { 'settings set target.process.thread.step-avoid-libraries true' },
+      })
+    end
+    local ok_t, telescope = pcall(require, 'telescope')
+    if ok_t then
+      local pickers = require('telescope.pickers')
+      local finders = require('telescope.finders')
+      local conf = require('telescope.config').values
+      local entries = {}
+      for _, p in ipairs(cand) do
+        local rel = vim.fn.fnamemodify(p, ':.')
+        table.insert(entries, { display = rel, value = p, ordinal = rel })
+      end
+      pickers.new({}, {
+        prompt_title = '选择要调试的可执行文件',
+        finder = finders.new_table({
+          results = entries,
+          entry_maker = function(e) return { value = e.value, display = e.display, ordinal = e.ordinal } end,
+        }),
+        sorter = conf.generic_sorter({}),
+        attach_mappings = function(bufnr, map)
+          local actions = require('telescope.actions')
+          local action_state = require('telescope.actions.state')
+          local function choose(pbuf)
+            local entry = action_state.get_selected_entry()
+            actions.close(pbuf)
+            start_debug(entry and (entry.value or entry[1]))
+          end
+          map('i', '<CR>', choose)
+          map('n', '<CR>', choose)
+          return true
+        end,
+      }):find()
+      return
+    end
+    local ui = vim.ui or {}
+    if ui.select then
+      local items = {}
+      for _, p in ipairs(cand) do table.insert(items, vim.fn.fnamemodify(p, ':.')) end
+      ui.select(items, { prompt = '选择要调试的可执行文件' }, function(choice)
+        if not choice then return end
+        for _, p in ipairs(cand) do if vim.fn.fnamemodify(p, ':.') == choice then start_debug(p) return end end
+      end)
+      return
+    end
+    -- Fallback: use the first candidate
+    start_debug(cand[1])
+    end)
     return
   end
   local ok, dap = pcall(require, 'dap')

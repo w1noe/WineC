@@ -1,5 +1,41 @@
 # Quick-c Release Notes
 
+## v1.5.2 (2025-10-26)
+
+### 新增
+- 调试可执行文件选择（当默认路径不可用）：
+  - `QuickCDebug` 在找不到默认可执行文件时，进行“并行异步”候选搜索，并通过 Telescope（优先）或 `vim.ui.select` 提示选择要调试的可执行文件。
+  - 搜索范围包含：当前文件目录（向上 up 层、向下 down 层）、项目下常见目录（`build/`、`bin/`、`out/`）、以及配置的 `outdir`（当不为 `source`）。
+
+### 改进
+- 最近构建产物优先：
+  - 构建成功后缓存“项目根”的最近一次构建产物路径；`QuickCDebug` 调试时优先使用该路径，减少选择动作。
+- 搜索策略与性能：
+  - 基于 libuv 的 `fs_scandir` 并发限流，BFS 按层推进，避免阻塞主线程；忽略目录做“一层探测”以提升命中率。
+
+### 配置
+- 新增配置块：
+  - `debug.search.up`（默认 2）：最大向上搜索层数。
+  - `debug.search.down`（默认 2）：最大向下搜索层数。
+  - `debug.search.ignore_dirs`（默认 `['.git','node_modules','.cache']`）。
+  - `debug.concurrency`（默认 8）：并行扫描并发数。
+
+Lua 示例：
+```lua
+require('quick-c').setup({
+  debug = {
+    search = { up = 3, down = 2, ignore_dirs = { '.git', 'node_modules', '.cache' } },
+    concurrency = 6,
+  },
+})
+```
+
+### 兼容性
+- 无破坏性变更；默认行为为“命中最近构建产物 → 找不到时进入候选选择”。
+
+### 迁移指南
+- 无需迁移。可按需在 `setup()` 或 `.quick-c.json` 中调整 `debug.search` 与 `debug.concurrency`。
+
 ## v1.5.1 (2025-10-26)
 
 ### 修复
