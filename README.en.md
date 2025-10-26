@@ -39,11 +39,13 @@ Lightweight Neovim plugin for C/C++: build, run, and debug the current file in o
  - 🌐 Cross-platform: auto select compiler (gcc/clang/cl) and runtime (PowerShell/terminal)
  - 📁 Flexible output dir: default to source folder; configurable
  - 🔧 Make integration: auto discover Makefiles, list targets, .PHONY prioritization, argument input with remember
-  - 🧭 More robust parsing: fallback to `-pn` if `-qp` yields nothing; support Windows-style paths in targets
-  - 🧪 If `prefer` points to a non-executable program, use an available make (make/mingw32-make/nmake) only for parsing; still run with your `prefer`
+  - 🧭 Robust parsing: fallback to `-pn` if `-qp` yields nothing; support Windows-style paths in targets
+  - 🧪 If `prefer` is not executable, use an available make (make/mingw32-make/nmake) only for parsing; running still uses your `prefer`
+- 🏗️ CMake integration: search CMakeLists, `cmake -S/-B` configure, `cmake --build` with target list (`--target help`)
+  - View modes: `both` (stream output + quickfix), `quickfix`, `terminal`
+  - Output panel: `cmake.output.{open,height}`
 - 🔭 Telescope: Makefile preview, multi-select sources, quick toggle .PHONY
-or use an external one for clangd
- - ⌨️ Keymaps included and non-invasive (unique=true)
+- ⌨️ Keymaps included and non-invasive (unique=true)
 
 ## 🚀 Quick Start
 
@@ -87,9 +89,11 @@ If the current buffer is unnamed and modified, auto-jump from diagnostics is ski
 - `QuickCMake` – choose Make directory and targets
 - `QuickCMakeRun [target]` – run a specific target directly
 - `QuickCMakeCmd` – prompt a full custom command (pre-filled `<prefer> -C <cwd>`), send to terminal
+- `QuickCCMake` / `QuickCCMakeRun [target]` / `QuickCCMakeConfigure` – CMake picker / build / configure
 - `QuickCCompileDB` / `QuickCCompileDBGen` / `QuickCCompileDBUse`
 - `QuickCQuickfix` – open quickfix (prefer Telescope)
 - `QuickCCheck` – validate configuration (types/paths/executables) and show a report
+- `QuickCHealth` – health report (dependencies, hints)
 - `:QuickCReload` recompute defaults+user+project configuration
 - `:QuickCConfig` print effective configuration and detected project config path
 
@@ -100,6 +104,9 @@ If the current buffer is unnamed and modified, auto-jump from diagnostics is ski
 - `<leader>cqR` build & run
 - `<leader>cqD` debug
 - `<leader>cqM` Telescope Make targets
+- `<leader>cqC` CMake targets (Telescope)
+- `<leader>cqB` CMake build
+- `<leader>cqc` CMake configure
 - `<leader>cqS` Telescope source picker
 - `<leader>cqf` Open quickfix (Telescope)
 
@@ -316,6 +323,32 @@ use({
   config = function()
     require('quick-c').setup()
   end,
+})
+```
+
+### CMake configuration (excerpt)
+
+```lua
+require('quick-c').setup({
+  cmake = {
+    enabled = true,
+    prefer = nil,            -- cmake executable
+    generator = nil,         -- e.g. "Ninja" | "Unix Makefiles" | ...
+    build_dir = 'build',     -- relative to project root
+    view = 'both',           -- 'both' | 'quickfix' | 'terminal'
+    output = { open = true, height = 12 },
+    search = { up = 2, down = 3, ignore_dirs = { '.git', 'node_modules', '.cache' } },
+    telescope = {
+      prompt_title = 'Quick-c CMake Targets',
+      preview = true,
+      max_preview_bytes = 200*1024,
+      max_preview_lines = 2000,
+      set_filetype = false,
+      choose_terminal = 'auto',
+    },
+    args = { prompt = true, default = '', remember = true },
+    configure = { extra = {}, toolchain = nil },
+  },
 })
 ```
 

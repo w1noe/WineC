@@ -37,8 +37,8 @@ C.defaults = {
   diagnostics = {
     quickfix = {
       enabled = true,      -- 是否收集编译输出到 quickfix
-      open = 'error',      -- 'always' | 'error' | 'warning' | 'never'
-      jump = 'error',      -- 'always' | 'error' | 'warning' | 'never'
+      open = 'warning',    -- 'always' | 'error' | 'warning' | 'never'
+      jump = 'warning',    -- 'always' | 'error' | 'warning' | 'never'
       use_telescope = true,-- 打开列表时优先使用 Telescope quickfix（如已安装）
     },
   },

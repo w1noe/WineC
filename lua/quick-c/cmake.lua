@@ -1,6 +1,17 @@
 local U = require('quick-c.util')
 local M = {}
 
+local _cache = {
+  root = {},
+  targets = {},
+}
+local function _now()
+  return vim.loop.now() / 1000
+end
+local function _ttl()
+  return 10
+end
+
 local function choose_cmake(config)
   local pref = (config.cmake or {}).prefer
   local function is_exec(x) return x and vim.fn.executable(x) == 1 end
@@ -23,6 +34,9 @@ end
 
 -- Async, breadth-first limited search similar to make_search but simplified
 function M.find_root_async(config, start_dir, cb)
+  local key = U.norm(start_dir)
+  local ent = _cache.root[key]
+  if ent and (_now() - ent.t) < _ttl() then cb(ent.v) return end
   local cfg = (config.cmake or {}).search or {}
   local up = tonumber(cfg.up) or 2
   local down = tonumber(cfg.down) or 3
@@ -78,9 +92,9 @@ function M.find_root_async(config, start_dir, cb)
     if scanning or found then return end
     scanning = true
     local item = table.remove(queue, 1)
-    if not item then scanning = false cb(start_dir) return end
+    if not item then scanning = false _cache.root[key] = { v = start_dir, t = _now() } cb(start_dir) return end
     local dir, depth = item.dir, item.depth
-    if find_cmakelists(dir) then scanning = false found = true cb(dir) return end
+    if find_cmakelists(dir) then scanning = false found = true _cache.root[key] = { v = dir, t = _now() } cb(dir) return end
     if depth < down then
       scandir_async(dir, function(entries)
         for _, e in ipairs(entries) do
@@ -91,7 +105,7 @@ function M.find_root_async(config, start_dir, cb)
               if not seen[key] then seen[key] = true table.insert(queue, { dir = subdir, depth = depth + 1 }) end
             else
               local subdir = U.join(dir, e.name)
-              if find_cmakelists(subdir) then scanning = false found = true cb(subdir) return end
+              if find_cmakelists(subdir) then scanning = false found = true _cache.root[key] = { v = subdir, t = _now() } cb(subdir) return end
             end
           end
         end
@@ -354,6 +368,9 @@ end
 function M.list_targets_async(config, root, cb)
   M.ensure_configured_async(config, root, function(ok, bdir)
     if not ok then cb({}) return end
+    local k = U.norm(bdir)
+    local ent = _cache.targets[k]
+    if ent and (_now() - ent.t) < _ttl() then cb(ent.v) return end
     local cmd = { choose_cmake(config) or 'cmake', '--build', bdir, '--target', 'help' }
     local lines = {}
     local jid = vim.fn.jobstart(cmd, {
@@ -363,6 +380,7 @@ function M.list_targets_async(config, root, cb)
       on_stderr = function(_, d) if d then for _, l in ipairs(d) do table.insert(lines, l) end end end,
       on_exit = function()
         local targets = parse_targets_from_help(lines)
+        _cache.targets[k] = { v = targets, t = _now() }
         cb(targets)
       end,
     })
@@ -373,6 +391,4 @@ end
 M.choose_cmake = choose_cmake
 M.build_dir_for = build_dir_for
 M.resolve_root_async = resolve_root_async
-M.list_targets_async = M.list_targets_async
-
 return M

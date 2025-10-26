@@ -1,5 +1,31 @@
 # Quick-c Release Notes
 
+## v1.5.1 (2025-10-26)
+
+### 修复
+- 移除 `cmake.lua` 末尾冗余导出（`M.list_targets_async = M.list_targets_async`），避免阅读混淆。
+
+### 一致性
+- 统一诊断默认值：`diagnostics.quickfix.open/jump` 默认改为 `warning`，与 README 描述一致。
+
+### 性能/缓存
+- CMake：为根目录搜索与目标列表新增 TTL 缓存（默认 10s），减少重复 IO 与命令调用。
+
+### 新增
+- 健康检查命令：`QuickCHealth` 输出基础依赖探测结果与诊断策略摘要。
+
+### 工程化
+- CI：新增 GitHub Actions（Stylua 检查 + Luacheck）。
+
+### 文档
+- 英文 README 同步 CMake 功能、命令与键位、配置节与视图模式，新增 `QuickCHealth` 说明。
+
+### 兼容性
+- 无破坏性变更。默认行为趋于与文档一致。
+
+### 迁移指南
+- 无需迁移。如有自定义诊断策略，请根据需要覆盖 `diagnostics.quickfix.{open,jump}`。
+
 ## v1.5.0 (2025-10-26)
 
 ### 新增
