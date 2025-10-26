@@ -83,6 +83,30 @@ C.defaults = {
       remember = true,  -- 记住每个 cwd 最近一次输入，作为下次默认值
     },
   },
+  cmake = {
+    enabled = true,
+    prefer = nil, -- 指定 cmake 可执行程序路径或名称
+    generator = nil, -- 例如 "Ninja" | "Unix Makefiles" | "MinGW Makefiles" | "NMake Makefiles"
+    build_dir = "build", -- 构建目录，默认在项目根目录下
+    search = { up = 2, down = 3, ignore_dirs = { '.git', 'node_modules', '.cache' } },
+    telescope = {
+      prompt_title = "Quick-c CMake Targets",
+      preview = true,
+      max_preview_bytes = 200 * 1024,
+      max_preview_lines = 2000,
+      set_filetype = false,
+      choose_terminal = 'auto',
+    },
+    args = {
+      prompt = true,    -- 选择目标后是否弹出输入框追加构建参数（传递给构建工具，如 -j4）
+      default = "",
+      remember = true,
+    },
+    configure = {
+      extra = {}, -- 额外传递给 cmake -S/-B 的参数，如 { "-DCMAKE_BUILD_TYPE=Debug" }
+      toolchain = nil, -- 指定工具链文件路径
+    },
+  },
   keymaps = {
     enabled = true,
     build = "<leader>cqb",
@@ -90,6 +114,9 @@ C.defaults = {
     build_and_run = "<leader>cqR",
     debug = "<leader>cqD",
     make = "<leader>cqM",
+    cmake = "<leader>cqC",
+    cmake_run = "<leader>cqB",
+    cmake_configure = "<leader>cqc",
     sources = "<leader>cqS",
     quickfix = "<leader>cqf",
   },

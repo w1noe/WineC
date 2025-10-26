@@ -1,5 +1,6 @@
 local M = {}
 local U = require('quick-c.util')
+local T = require('quick-c.terminal')
 local LAST_ARGS = {}
 
 -- Telescope picker for make: select cwd (resolved outside) -> list targets -> run
@@ -195,6 +196,62 @@ function M.telescope_make(config,
           end
           map('i', '<C-p>', toggle_phony_only)
           map('n', '<C-p>', toggle_phony_only)
+          return true
+        end,
+      }):find()
+    end)
+  end)
+end
+
+-- Telescope picker for CMake: resolve root -> ensure configured -> list targets -> run
+function M.telescope_cmake(config)
+  local ok_t = pcall(require, 'telescope')
+  if not ok_t then
+    vim.notify('未找到 telescope.nvim', vim.log.levels.ERROR)
+    return
+  end
+  local CM = require('quick-c.cmake')
+  local pickers = require('telescope.pickers')
+  local finders = require('telescope.finders')
+  local conf = require('telescope.config').values
+  local base = vim.fn.fnamemodify(vim.fn.expand('%:p'), ':h')
+  CM.resolve_root_async(config, base, function(root)
+    CM.list_targets_async(config, root, function(targets)
+      if not targets or #targets == 0 then
+        vim.notify('未解析到任何 CMake 目标（或生成器不支持 help 列表）', vim.log.levels.WARN)
+        return
+      end
+      local entries = {}
+      table.insert(entries, { display = '[配置]', kind = 'configure' })
+      for _, t in ipairs(targets) do table.insert(entries, { display = t, value = t, kind = 'target' }) end
+      local title = (config.cmake and config.cmake.telescope and config.cmake.telescope.prompt_title) or 'CMake Targets'
+      pickers.new({}, {
+        prompt_title = title .. ' (' .. root .. ')',
+        finder = finders.new_table({
+          results = entries,
+          entry_maker = function(e) return { value = e.value, display = e.display, ordinal = e.display, kind = e.kind } end,
+        }),
+        sorter = conf.generic_sorter({}),
+        attach_mappings = function(bufnr, map)
+          local actions = require('telescope.actions')
+          local action_state = require('telescope.actions.state')
+          local function choose(pbuf)
+            local entry = action_state.get_selected_entry()
+            actions.close(pbuf)
+            if entry.kind == 'configure' then
+              local notify = { err = U.notify_err, warn = U.notify_warn, info = U.notify_info }
+              CM.ensure_configured_async(config, root, function(ok)
+                if ok then notify.info('CMake 配置完成') else notify.err('CMake 配置失败') end
+              end)
+              return
+            end
+            local function run_terminal(cmd)
+              return T.select_or_run_in_terminal(config, function() return U.is_windows() end, cmd, U.notify_warn, U.notify_err)
+            end
+            CM.build_in_root(config, root, entry.value, run_terminal)
+          end
+          map('i', '<CR>', choose)
+          map('n', '<CR>', choose)
           return true
         end,
       }):find()

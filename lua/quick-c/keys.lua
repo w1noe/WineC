@@ -1,7 +1,7 @@
 local K = {}
 
 -- Setup keymaps according to config.keymaps
--- callbacks: { build, run, build_and_run, debug, make }
+-- callbacks: { build, run, build_and_run, debug, make, cmake, cmake_run, cmake_configure }
 function K.setup(config, callbacks)
   local km = config.keymaps or {}
   if km.enabled == false then return end
@@ -31,6 +31,9 @@ function K.setup(config, callbacks)
         { def = def.build_and_run, cur = km.build_and_run },
         { def = def.debug, cur = km.debug },
         { def = def.make, cur = km.make },
+        { def = def.cmake, cur = km.cmake },
+        { def = def.cmake_run, cur = km.cmake_run },
+        { def = def.cmake_configure, cur = km.cmake_configure },
         { def = def.sources, cur = km.sources },
         { def = def.quickfix, cur = km.quickfix },
       }
@@ -62,6 +65,15 @@ function K.setup(config, callbacks)
   end
   if not disabled(km.make) then
     map(km.make, callbacks.make, "Quick-c: Make targets (Telescope)")
+  end
+  if not disabled(km.cmake) and callbacks.cmake then
+    map(km.cmake, callbacks.cmake, "Quick-c: CMake targets (Telescope)")
+  end
+  if not disabled(km.cmake_run) and callbacks.cmake_run then
+    map(km.cmake_run, callbacks.cmake_run, "Quick-c: CMake build")
+  end
+  if not disabled(km.cmake_configure) and callbacks.cmake_configure then
+    map(km.cmake_configure, callbacks.cmake_configure, "Quick-c: CMake configure (-S/-B)")
   end
   if not disabled(km.sources) and km.sources then
     local function sources_picker()
