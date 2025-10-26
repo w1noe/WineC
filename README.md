@@ -38,7 +38,6 @@
  - 🌐 **跨平台**：自动选择可用编译器（gcc/clang/cl）与合适运行方式（PowerShell/终端）
  - 📁 **灵活输出位置**：默认将可执行文件输出到源码所在目录；可通过配置修改
  - 🔌 **终端兼容**：优先将命令发送到 `betterTerm`（如已安装），否则使用 Neovim 内置终端
- 
  - 🔧 **Make 集成**：自动发现 Makefile、列出目标、`.PHONY` 优先、参数输入与记忆
   - 🧭 目标解析更稳健：`-qp` 无结果时回退 `-pn`；Windows 兼容路径样式目标
   - 🧪 不可执行 `prefer` 时，解析阶段自动用可用 make（`make`/`mingw32-make`/`nmake`）探测；运行仍按你的 `prefer`
@@ -227,6 +226,16 @@ require("quick-c").setup({
   },
   diagnostics = {
     quickfix = { open = "warning", jump = "warning", use_telescope = true },
+  },
+  -- 调试可执行文件搜索（当默认路径不存在时）
+  debug = {
+    search = {
+      dirs = { "./build/bin", "./out" }, -- 优先搜索目录，不存在则回退到 up/down 策略
+      up = 2,                               -- 限制在 :pwd 内向上搜索层数
+      down = 2,                             -- 向下搜索层数
+      ignore_dirs = { ".git", "node_modules", ".cache" },
+    },
+    concurrency = 8,                        -- 并行扫描并发数
   },
   keymaps = {
     enabled = true,

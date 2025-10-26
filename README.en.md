@@ -44,8 +44,6 @@ Lightweight Neovim plugin for C/C++: build, run, and debug the current file in o
 - 🏗️ CMake integration: search CMakeLists, `cmake -S/-B` configure, `cmake --build` with target list (`--target help`)
   - View modes: `both` (stream output + quickfix), `quickfix`, `terminal`
   - Output panel: `cmake.output.{open,height}`
-- 🔭 Telescope: Makefile preview, multi-select sources, quick toggle .PHONY
-- ⌨️ Keymaps included and non-invasive (unique=true)
 
 ## 🚀 Quick Start
 
@@ -53,6 +51,7 @@ Lightweight Neovim plugin for C/C++: build, run, and debug the current file in o
 - Run: `:QuickCRun` or `<leader>cqr`
 - Build & Run: `:QuickCBR` or `<leader>cqR`
 - Debug: `:QuickCDebug` or `<leader>cqD`
+- When the default executable is missing, `QuickCDebug` will search for alternatives in preferred directories (e.g., `./build/bin`, `./out`) and prompt a picker.
 
 Multi-file:
 
@@ -127,7 +126,7 @@ If the current buffer is unnamed and modified, auto-jump from diagnostics is ski
 - Parses gcc/clang/MSVC output to quickfix (errors & warnings)
 - Auto open/jump policy: `always | error | warning | never`
 - Prefer Telescope quickfix when available (`use_telescope = true`)
-- If current buffer is unnamed and modified, auto-jump is skipped to avoid save prompts
+- If current buffer is unnamed and modified, auto-jump is skipped to avoid save prompts.
 
 ## ⚙️ Configuration
 
@@ -219,6 +218,17 @@ Example `.quick-c.json` (annotated):
     "args": { "prompt": true, "default": "-j4", "remember": true }
   },
 
+  // Debug executable discovery when the default path is missing
+  "debug": {
+    "search": {
+      "dirs": ["./build/bin", "./out"],  // preferred directories; fall back to up/down if absent
+      "up": 2,                              // limit upward search within :pwd
+      "down": 2,                            // downward breadth-first depth
+      "ignore_dirs": [".git", "node_modules", ".cache"],
+    },
+    "concurrency": 8,                       // parallel fs_scandir concurrency
+  },
+
   // Default keymaps (customizable/disable-able); injected only when keymaps.enabled != false
   "keymaps": {
     "build": "<leader>cb",
@@ -253,6 +263,15 @@ require('quick-c').setup({
   diagnostics = {
     quickfix = { open = 'warning', jump = 'warning', use_telescope = true },
   },
+  debug = {
+    search = {
+      dirs = { './build/bin', './out' },
+      up = 2,
+      down = 2,
+      ignore_dirs = { '.git', 'node_modules', '.cache' },
+    },
+    concurrency = 8,
+  },
   keymaps = {
     enabled = true,
     build = '<leader>cqb',
@@ -286,6 +305,15 @@ require('quick-c').setup({
       jump = 'warning',   -- always | error | warning | never
       use_telescope = true,
     },
+  },
+  debug = {
+    search = {
+      dirs = { './build/bin', './out' },
+      up = 2,
+      down = 2,
+      ignore_dirs = { '.git', 'node_modules', '.cache' },
+    },
+    concurrency = 8,
   },
   keymaps = {
     enabled = true,
