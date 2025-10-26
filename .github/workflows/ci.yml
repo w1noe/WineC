@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: JohnnyMorganz/stylua-action@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          version: latest
+          args: --check .
+      - name: Setup Lua
+        uses: leafo/gh-actions-lua@v10
+        with:
+          luaVersion: "5.1"
+      - name: Setup LuaRocks
+        uses: leafo/gh-actions-luarocks@v4
+      - name: Install luacheck
+        run: |
+          luarocks install luacheck
+      - name: Run luacheck
+        run: |
+          luacheck lua --no-color
+
+  smoke:
+    name: Smoke (basic commands on ${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        neovim: [stable]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Neovim
+        uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: ${{ matrix.neovim }}
+
+      - name: Install build tools (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake make gcc g++
+
+      - name: Basic commands
+        shell: bash
+        run: |
+          nvim -v
+          nvim -Es \
+            +"lua vim.opt.runtimepath:append(vim.fn.getcwd()); require('quick-c').setup({})" \
+            +QuickCHealth +QuickCCheck +QuickCReload +QuickCConfig +qall!
+
+      - name: CMake configure smoke (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -e
+          mkdir -p tests/smoke
+          cat > tests/smoke/CMakeLists.txt << 'EOF'
+          cmake_minimum_required(VERSION 3.10)
+          project(foo C)
+          add_executable(foo main.c)
+          EOF
+          cat > tests/smoke/main.c << 'EOF'
+          #include <stdio.h>
+          int main(){ puts("ok"); return 0; }
+          EOF
+          nvim -Es \
+            +"lua vim.opt.runtimepath:append(vim.fn.getcwd()); vim.cmd('lcd tests/smoke'); require('quick-c').setup({})" \
+            +QuickCCMakeConfigure +qall!

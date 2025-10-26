@@ -47,7 +47,29 @@ function M.telescope_make(config,
         targets = res or {}
       end
       if #targets == 0 then
-        vim.notify('未解析到任何 make 目标', vim.log.levels.WARN)
+        local pickers = require('telescope.pickers')
+        local finders = require('telescope.finders')
+        local conf = require('telescope.config').values
+        local previewers = require('telescope.previewers')
+        pickers.new({}, {
+          prompt_title = 'Make Targets (' .. cwd .. ')',
+          finder = finders.new_table({ results = { { display = '[未解析到任何 Make 目标]', kind = 'empty' } }, entry_maker = function(e)
+            return { value = e.value, display = e.display, ordinal = e.display, kind = e.kind }
+          end }),
+          sorter = conf.generic_sorter({}),
+          previewer = previewers.new_buffer_previewer({
+            define_preview = function(self)
+              local lines = {
+                '[空状态]',
+                '未找到可用的 Make 目标。你可以：',
+                '1) 确认目录存在 Makefile',
+                '2) 在项目根执行 make -qp 检查输出',
+                '3) 调整 quick-c 的 make.search 或 make.cwd 配置',
+              }
+              vim.api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, lines)
+            end,
+          }),
+        }):find()
         return
       end
       local telcfg = (config.make and config.make.telescope) or {}
@@ -218,7 +240,45 @@ function M.telescope_cmake(config)
   CM.resolve_root_async(config, base, function(root)
     CM.list_targets_async(config, root, function(targets)
       if not targets or #targets == 0 then
-        vim.notify('未解析到任何 CMake 目标（或生成器不支持 help 列表）', vim.log.levels.WARN)
+        local pickers = require('telescope.pickers')
+        local finders = require('telescope.finders')
+        local conf = require('telescope.config').values
+        local previewers = require('telescope.previewers')
+        local entries = { { display = '[配置]', kind = 'configure' } }
+        pickers.new({}, {
+          prompt_title = 'CMake Targets (' .. root .. ')',
+          finder = finders.new_table({ results = entries, entry_maker = function(e)
+            return { value = e.value, display = e.display, ordinal = e.display, kind = e.kind }
+          end }),
+          sorter = conf.generic_sorter({}),
+          previewer = previewers.new_buffer_previewer({
+            define_preview = function(self)
+              local lines = {
+                '[空状态]',
+                '未解析到任何 CMake 目标：',
+                '- 生成器可能不支持 --target help',
+                '- 或尚未配置（请先选择 [配置]）',
+              }
+              vim.api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, lines)
+            end,
+          }),
+          attach_mappings = function(bufnr, map)
+            local actions = require('telescope.actions')
+            local action_state = require('telescope.actions.state')
+            local function choose(pbuf)
+              local entry = action_state.get_selected_entry()
+              actions.close(pbuf)
+              if entry.kind == 'configure' then
+                CM.ensure_configured_async(config, root, function(ok)
+                  if ok then U.notify_info('CMake 配置完成') else U.notify_err('CMake 配置失败') end
+                end)
+              end
+            end
+            map('i', '<CR>', choose)
+            map('n', '<CR>', choose)
+            return true
+          end,
+        }):find()
         return
       end
       local entries = {}

@@ -247,6 +247,17 @@ function M.setup(opts)
         end
         V.run_and_notify(M.config)
     end, {})
+    -- Health report
+    vim.api.nvim_create_user_command("QuickCHealth", function()
+        local ok_h, H = pcall(require, 'quick-c.health')
+        if not ok_h then
+            vim.notify('Quick-c: health module not found', vim.log.levels.ERROR)
+            return
+        end
+        local ok, lines = H.run(M.config)
+        local lvl = ok and vim.log.levels.INFO or vim.log.levels.WARN
+        vim.notify(table.concat(lines, "\n"), lvl)
+    end, {})
     vim.api.nvim_create_user_command("QuickCMake", function()
         telescope_make()
     end, {})

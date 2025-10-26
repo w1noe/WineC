@@ -150,28 +150,29 @@ use({
 
 ## ⌨️ 命令与快捷键
 
-- 命令：
-  - `QuickCBuild`/`QuickCRun`/`QuickCBR`/`QuickCDebug`
-  - `QuickCMake`/`QuickCMakeRun [target]`
-  - `QuickCCMake`/`QuickCCMakeRun [target]`/`QuickCCMakeConfigure`
-  - `QuickCMakeCmd`：自定义完整命令（预填 `<prefer> -C <cwd>`，可编辑后发送到终端）
-  - `QuickCCompileDB`/`QuickCCompileDBGen`/`QuickCCompileDBUse`
-  - `QuickCQuickfix`：打开 quickfix（优先 Telescope）
-  - `QuickCCheck`：检查配置（类型/路径/可执行性）并输出报告
-  - `QuickCReload`：重新计算默认+用户+项目配置
-  - `QuickCConfig`：打印生效配置与项目配置路径
+### 命令与键位矩阵（速查）
 
-- 默认键位（普通模式）：
-  - `<leader>cqb` 构建
-  - `<leader>cqr` 运行
-  - `<leader>cqR` 构建并运行
-  - `<leader>cqD` 调试
-  - `<leader>cqM` Make 目标（Telescope）
-  - `<leader>cqS` 源文件选择（Telescope）
-  - `<leader>cqf` 打开 quickfix（Telescope）
-  - `<leader>cqC` CMake 目标（Telescope）
-  - `<leader>cqB` CMake 构建
-  - `<leader>cqc` CMake 配置
+| 分类 | 命令 | 说明 | 默认键位 |
+| --- | --- | --- | --- |
+| Build/Run/Debug | `QuickCBuild` | 构建当前/所选源文件 | `<leader>cqb` |
+|  | `QuickCRun` | 运行最近构建的可执行文件 | `<leader>cqr` |
+|  | `QuickCBR` | 构建并运行 | `<leader>cqR` |
+|  | `QuickCDebug` | 使用 codelldb 调试最近构建的程序 | `<leader>cqD` |
+| Make | `QuickCMake` | 选择目录与目标并执行 | `<leader>cqM` |
+|  | `QuickCMakeRun [target]` | 直接执行指定目标 | — |
+|  | `QuickCMakeCmd` | 自定义完整 make 命令并发送到终端 | — |
+| CMake | `QuickCCMake` | 打开 CMake 目标选择器 | `<leader>cqC` |
+|  | `QuickCCMakeRun [target]` | 构建默认或指定目标 | `<leader>cqB` |
+|  | `QuickCCMakeConfigure` | 执行 cmake 配置（-S/-B） | `<leader>cqc` |
+| Sources | — | Telescope 源文件选择器 | `<leader>cqS` |
+| Diagnostics | `QuickCQuickfix` | 打开 quickfix（优先 Telescope） | `<leader>cqf` |
+| Config | `QuickCCompileDB` | 应用编译数据库（生成到当前文件目录） | — |
+|  | `QuickCCompileDBGen` | 生成 compile_commands.json | — |
+|  | `QuickCCompileDBUse` | 使用外部 compile_commands.json | — |
+|  | `QuickCCheck` | 检查配置并输出报告 | — |
+|  | `QuickCHealth` | 环境健康检查 | — |
+|  | `QuickCReload` | 重新加载配置 | — |
+|  | `QuickCConfig` | 打印生效配置与项目路径 | — |
 
 ## ⚙️ 配置
 
@@ -283,13 +284,7 @@ require("quick-c").setup({
           max_preview_bytes = 200 * 1024,
           max_preview_lines = 2000,
           set_filetype = false,
-          choose_terminal = 'auto',
-        },
-        args = { prompt = true, default = '', remember = true },
-        configure = { extra = {}, toolchain = nil },
-      },
-      -- 为 LSP 生成/使用 compile_commands.json（clangd 等）
-      compile_commands = {
+          -- 发送命令到终端时的选择行为
         -- 'generate' 生成基于当前文件的简单编译数据库；'use' 从指定路径复制
         mode = 'generate',
         -- 输出位置：'source' 表示写入到当前源文件所在目录
@@ -395,6 +390,13 @@ require("quick-c").setup({
   end,
 }
 ```
+
+### CMake 终端选择说明
+
+- CMake 目标/构建发送到终端的行为由 `cmake.telescope.choose_terminal` 控制，语义与 `make.telescope.choose_terminal` 一致：
+  - `auto`：已打开终端时弹选择器，否则使用默认策略（betterTerm 优先，失败回退内置）
+  - `always`：总是弹出选择器
+  - `never`：总是使用默认策略
 
 自定义示例：指定固定输出目录，并优先使用 `clang/clang++`：
 

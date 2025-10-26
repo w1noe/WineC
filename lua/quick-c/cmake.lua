@@ -1,6 +1,28 @@
 local U = require('quick-c.util')
 local M = {}
 
+local _cache = {
+  root = {},
+  targets = {},
+}
+local function _now()
+  return vim.loop.now() / 1000
+end
+
+local function _config_stamp(bdir)
+  local uv = vim.loop
+  local cache = U.join(bdir, 'CMakeCache.txt')
+  local st = uv.fs_stat(cache)
+  if st and st.mtime then return tostring(st.mtime.sec or st.mtime) end
+  local dir = U.join(bdir, 'CMakeFiles')
+  st = uv.fs_stat(dir)
+  if st and st.mtime then return tostring(st.mtime.sec or st.mtime) end
+  return '0'
+end
+local function _ttl()
+  return 10
+end
+
 local function choose_cmake(config)
   local pref = (config.cmake or {}).prefer
   local function is_exec(x) return x and vim.fn.executable(x) == 1 end
@@ -23,6 +45,9 @@ end
 
 -- Async, breadth-first limited search similar to make_search but simplified
 function M.find_root_async(config, start_dir, cb)
+  local key = U.norm(start_dir)
+  local ent = _cache.root[key]
+  if ent and (_now() - ent.t) < _ttl() then cb(ent.v) return end
   local cfg = (config.cmake or {}).search or {}
   local up = tonumber(cfg.up) or 2
   local down = tonumber(cfg.down) or 3
@@ -78,9 +103,9 @@ function M.find_root_async(config, start_dir, cb)
     if scanning or found then return end
     scanning = true
     local item = table.remove(queue, 1)
-    if not item then scanning = false cb(start_dir) return end
+    if not item then scanning = false _cache.root[key] = { v = start_dir, t = _now() } cb(start_dir) return end
     local dir, depth = item.dir, item.depth
-    if find_cmakelists(dir) then scanning = false found = true cb(dir) return end
+    if find_cmakelists(dir) then scanning = false found = true _cache.root[key] = { v = dir, t = _now() } cb(dir) return end
     if depth < down then
       scandir_async(dir, function(entries)
         for _, e in ipairs(entries) do
@@ -91,7 +116,7 @@ function M.find_root_async(config, start_dir, cb)
               if not seen[key] then seen[key] = true table.insert(queue, { dir = subdir, depth = depth + 1 }) end
             else
               local subdir = U.join(dir, e.name)
-              if find_cmakelists(subdir) then scanning = false found = true cb(subdir) return end
+              if find_cmakelists(subdir) then scanning = false found = true _cache.root[key] = { v = subdir, t = _now() } cb(subdir) return end
             end
           end
         end
@@ -192,12 +217,29 @@ function M.build_in_root(config, root, target, run_terminal)
         local outcfg = (config.cmake and config.cmake.output) or {}
         local open = (outcfg.open ~= false)
         local height = tonumber(outcfg.height) or 12
-        outbuf = vim.api.nvim_create_buf(true, false)
-        pcall(vim.api.nvim_buf_set_name, outbuf, 'Quick-c: CMake Output')
+        local name = 'Quick-c: CMake Output'
+        local bufnr = vim.fn.bufnr(name)
+        if bufnr == -1 or not vim.api.nvim_buf_is_valid(bufnr) then
+          outbuf = vim.api.nvim_create_buf(true, false)
+          pcall(vim.api.nvim_buf_set_name, outbuf, name)
+        else
+          outbuf = bufnr
+          -- 清空旧内容
+          pcall(vim.api.nvim_buf_set_lines, outbuf, 0, -1, false, {})
+        end
+        -- 设置 buffer 选项
+        pcall(vim.api.nvim_buf_set_option, outbuf, 'buftype', 'nofile')
+        pcall(vim.api.nvim_buf_set_option, outbuf, 'bufhidden', 'wipe')
+        pcall(vim.api.nvim_buf_set_option, outbuf, 'swapfile', false)
         if open then
-          vim.cmd('botright ' .. height .. 'split')
-          outwin = vim.api.nvim_get_current_win()
-          vim.api.nvim_win_set_buf(outwin, outbuf)
+          local winid = vim.fn.bufwinnr(outbuf)
+          if winid ~= -1 then
+            outwin = vim.fn.win_getid(winid)
+          else
+            vim.cmd('botright ' .. height .. 'split')
+            outwin = vim.api.nvim_get_current_win()
+            vim.api.nvim_win_set_buf(outwin, outbuf)
+          end
         end
       end
       local function append_lines(chunk)
@@ -218,42 +260,7 @@ function M.build_in_root(config, root, target, run_terminal)
         on_stderr = function(_, d) append_lines(d) end,
         on_exit = function(_, code)
           -- parse diagnostics (gcc/clang/msvc)
-          local function parse_diagnostics(lines)
-            local items, has_error, has_warning = {}, false, false
-            local function clean_path(p)
-              if not p or p == '' then return p end
-              p = p:gsub('^%s+', ''):gsub('%s+$', '')
-              p = p:gsub('^"(.+)"$', '%1'):gsub("^'(.-)'$", '%1')
-              return p
-            end
-            for _, l in ipairs(lines or {}) do
-              if type(l) ~= 'string' or l == '' then goto continue end
-              local f, ln, col, typ, msg = l:match("^(.+):(%d+):(%d+):%s*(%w+)%s*:%s*(.+)$")
-              if f then
-                local it = { filename = clean_path(f), lnum = tonumber(ln), col = tonumber(col), text = msg, type = (typ == 'error' and 'E' or 'W') }
-                if it.type == 'E' then has_error = true else has_warning = true end
-                table.insert(items, it)
-                goto continue
-              end
-              local f2, ln2, typ2, msg2 = l:match("^(.+):(%d+):%s*(%w+)%s*:%s*(.+)$")
-              if f2 then
-                local it = { filename = clean_path(f2), lnum = tonumber(ln2), col = 1, text = msg2, type = (typ2 == 'error' and 'E' or 'W') }
-                if it.type == 'E' then has_error = true else has_warning = true end
-                table.insert(items, it)
-                goto continue
-              end
-              local fm, lnm, typm, msgm = l:match("^%s*(.-)%((%d+)%)%s*:%s*(%w+)[^:]*:%s*(.+)$")
-              if fm then
-                local it = { filename = clean_path(fm), lnum = tonumber(lnm), col = 1, text = msgm, type = (typm:lower() == 'error' and 'E' or 'W') }
-                if it.type == 'E' then has_error = true else has_warning = true end
-                table.insert(items, it)
-                goto continue
-              end
-              ::continue::
-            end
-            return items, has_error, has_warning
-          end
-          local items, has_error, has_warning = parse_diagnostics(all)
+          local items, has_error, has_warning = U.parse_diagnostics(all)
           if #items > 0 then
             vim.fn.setqflist({}, ' ', { title = 'Quick-c CMake Build', items = items })
             local function should_open()
@@ -321,10 +328,12 @@ function M.run_build_from_current(config, target, run_terminal)
 end
 
 function M.configure_from_current(config, notify)
+  local ninfo = (type(notify) == 'table' and notify.info) or U.notify_info
+  local nerr = (type(notify) == 'table' and notify.err) or U.notify_err
   local base = vim.fn.fnamemodify(vim.fn.expand('%:p'), ':h')
   resolve_root_async(config, base, function(root)
     M.ensure_configured_async(config, root, function(ok)
-      if ok then notify.info('CMake 配置完成') else notify.err('CMake 配置失败') end
+      if ok then ninfo('CMake 配置完成') else nerr('CMake 配置失败') end
     end)
   end)
 end
@@ -354,6 +363,10 @@ end
 function M.list_targets_async(config, root, cb)
   M.ensure_configured_async(config, root, function(ok, bdir)
     if not ok then cb({}) return end
+    local k = U.norm(bdir)
+    local cur_stamp = _config_stamp(bdir)
+    local ent = _cache.targets[k]
+    if ent and ent.stamp == cur_stamp and (_now() - ent.t) < _ttl() then cb(ent.v) return end
     local cmd = { choose_cmake(config) or 'cmake', '--build', bdir, '--target', 'help' }
     local lines = {}
     local jid = vim.fn.jobstart(cmd, {
@@ -363,6 +376,7 @@ function M.list_targets_async(config, root, cb)
       on_stderr = function(_, d) if d then for _, l in ipairs(d) do table.insert(lines, l) end end end,
       on_exit = function()
         local targets = parse_targets_from_help(lines)
+        _cache.targets[k] = { v = targets, t = _now(), stamp = cur_stamp }
         cb(targets)
       end,
     })
@@ -373,6 +387,4 @@ end
 M.choose_cmake = choose_cmake
 M.build_dir_for = build_dir_for
 M.resolve_root_async = resolve_root_async
-M.list_targets_async = M.list_targets_async
-
 return M
