@@ -2,20 +2,25 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, dev ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, dev ]
 
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Normalize line endings (LF) for Lua
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dos2unix
+          git ls-files '*.lua' -z | xargs -0 dos2unix
       - uses: JohnnyMorganz/stylua-action@v3
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           version: latest
-          args: --check .
+          args: --check --color always .
       - name: Setup Lua
         uses: leafo/gh-actions-lua@v10
         with:

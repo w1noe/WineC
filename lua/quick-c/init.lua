@@ -15,6 +15,11 @@ M._suppress_notice_until = 0 -- uv.now() deadline in ms
 
 local function is_windows() return U.is_windows() end
 
+-- notify helpers must be defined before any function that captures them
+local function notify_err(msg) U.notify_err(msg) end
+local function notify_info(msg) U.notify_info(msg) end
+local function notify_warn(msg) U.notify_warn(msg) end
+
 -- CMake helpers
 local function cmake_run_target(target)
     return CM.run_build_from_current(M.config, target, function(cmd)
@@ -36,11 +41,6 @@ local function choose_make()
 end
 
 local function is_powershell() return U.is_powershell() end
-
-
-local function notify_err(msg) U.notify_err(msg) end
-local function notify_info(msg) U.notify_info(msg) end
-local function notify_warn(msg) U.notify_warn(msg) end
 
 -- quick-py like terminal helpers
 local function run_in_native_terminal(cmd)
