@@ -114,6 +114,7 @@ C.defaults = {
   },
   keymaps = {
     enabled = true,
+    unmap_defaults = true,
     build = "<leader>cqb",
     run = "<leader>cqr",
     build_and_run = "<leader>cqR",

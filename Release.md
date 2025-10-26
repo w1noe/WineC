@@ -18,6 +18,8 @@
   - `prefer`、`generator`、`build_dir`、`search.{up,down,ignore_dirs}`
   - `configure.{extra,toolchain}`（传递额外参数与工具链文件）
   - `args.{prompt,default,remember}`（构建附加参数交互与记忆）
+  - `view`（默认 `both`）：`both` 流式输出+quickfix；`quickfix` 仅 quickfix；`terminal` 仅终端
+  - `output.{open,height}`：both 模式输出面板是否自动打开与高度
 
 ### 改进
 - 键位系统扩展：支持 CMake 专用键位，遵循 `keymaps.unmap_defaults` 的卸载逻辑。
