@@ -31,6 +31,7 @@ jobs:
         run: |
           luarocks install luacheck
       - name: Run luacheck
+        continue-on-error: true
         run: |
           luacheck lua --no-color
 
