@@ -89,18 +89,32 @@ local function discover_candidates_async(config, is_win, start_dir, cb)
     return p
   end
   local bases = {}
-  do
-    local cur = start_dir
-    for _ = 0, up do
-      table.insert(bases, cur)
-      local nextp = parent(cur); if nextp == cur then break end
-      cur = nextp
+  local preferred = (search and type(search.dirs) == 'table') and search.dirs or nil
+  if preferred and #preferred > 0 then
+    for _, d in ipairs(preferred) do
+      local p = vim.fn.fnamemodify(d, ':p')
+      local st = uv.fs_stat(p)
+      if st and st.type == 'directory' then table.insert(bases, p) end
     end
   end
-  local cwd = vim.fn.getcwd()
-  for _, d in ipairs({ 'build', 'bin', 'out' }) do table.insert(bases, U.join(cwd, d)) end
-  local outdir = config.outdir
-  if outdir and outdir ~= '' and outdir ~= 'source' then table.insert(bases, outdir) end
+  if #bases == 0 then
+    local cwd = vim.fn.getcwd()
+    local cwd_root = U.norm(cwd)
+    local cur = start_dir
+    for _ = 0, up do
+      local cur_norm = U.norm(cur)
+      if not cur_norm:find(cwd_root, 1, true) then break end
+      table.insert(bases, cur)
+      local nextp = parent(cur)
+      if nextp == cur then break end
+      local next_norm = U.norm(nextp)
+      if #next_norm < #cwd_root or not next_norm:find(cwd_root, 1, true) then break end
+      cur = nextp
+    end
+    for _, d in ipairs({ 'build', 'bin', 'out' }) do table.insert(bases, U.join(cwd, d)) end
+    local outdir = config.outdir
+    if outdir and outdir ~= '' and outdir ~= 'source' then table.insert(bases, outdir) end
+  end
 
   local queue = {}
   for _, b in ipairs(bases) do table.insert(queue, { dir = b, depth = 0 }) end

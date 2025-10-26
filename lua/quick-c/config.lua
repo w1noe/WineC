@@ -63,6 +63,7 @@ C.defaults = {
       up = 2,
       down = 2,
       ignore_dirs = { '.git', 'node_modules', '.cache' },
+      dirs = nil,
     },
     concurrency = 8,
   },
