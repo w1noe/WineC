@@ -1,5 +1,28 @@
 # Quick-c Release Notes
 
+## v1.5.3 (2025-10-26)
+
+### 新增
+- 编译器强制选择：新增 `compile.prefer` 与 `compile.prefer_force`
+  - 可为 C/C++ 分别指定首选编译器名（例如交叉编译器）。
+  - 当 `prefer_force = true` 时，即使该编译器不在 PATH 中也会直接调用（可能运行时报错，属预期行为）。
+
+### 改进
+- `choose_compiler` 逻辑支持 `compile.prefer` 优先，并在 `prefer_force` 关闭时按可执行性回退到 `toolchain` 列表（如 `gcc/clang/cl`）。
+- README 与英文文档同步新增了该配置示例与说明。
+
+### 兼容性
+- 无破坏性变更；未配置时行为与旧版一致。
+
+### 迁移指南
+- 如需强制使用特定（交叉）编译器，在 `setup()` 或 `.quick-c.json` 中加入：
+```lua
+compile = {
+  prefer = { c = 'arm-none-eabi-gcc', cpp = 'arm-none-eabi-g++' },
+  prefer_force = true,
+}
+```
+
 ## v1.5.2 (2025-10-26)
 
 ### 新增

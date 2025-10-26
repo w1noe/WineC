@@ -1,12 +1,26 @@
 local C = {}
 
 C.defaults = {
-  -- outdir = "source" 表示输出到源码所在目录；也可设置为自定义目录
+  -- outdir 用于决定可执行文件与临时产物的输出位置：
+  -- - "source": 写入到“当前源文件所在目录”（默认）
+  -- - 其他字符串：自定义目录
+  --    · 相对路径：相对于当前工作目录(:pwd)；例如 "build"、"build/bin"
+  --    · 绝对路径：如 "C:/proj/bin" 或 "/home/me/bin"
+  --    · 目录不存在会自动创建（mkdir -p）
+  -- 示例：
+  --   outdir = "source"         -- a.c => ./a.exe 或 ./a.out
+  --   outdir = "build"          -- a.c => ./build/a.exe
+  --   outdir = "build/bin"      -- a.c => ./build/bin/a.exe
+  --   outdir = "C:/tmp/bin"     -- Windows 绝对路径
   outdir = "source",
   -- 用户可覆盖：为不同系统/工具链提供命令模板
   toolchain = {
     windows = { c = { "gcc", "cl" }, cpp = { "g++", "cl" } },
     unix = { c = { "gcc", "clang" }, cpp = { "g++", "clang++" } },
+  },
+  compile = {
+    prefer = { c = nil, cpp = nil },
+    prefer_force = false,
   },
   -- compile_commands.json 相关配置
   compile_commands = {

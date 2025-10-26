@@ -175,22 +175,34 @@ local function discover_candidates_async(config, is_win, start_dir, cb)
 end
 
 local function choose_compiler(config, is_win, ft)
+  local function family_of(name)
+    if not name or name == '' then return nil end
+    if name == 'cl' then return 'cl' end
+    if name:find('clang') then return 'clang' end
+    if name:find('gcc') or name:find('g%+%+') then return 'gcc' end
+    return nil
+  end
+  local comp = config.compile or {}
+  local prefer = comp.prefer and comp.prefer[ft] or nil
+  if prefer and prefer ~= '' then
+    if comp.prefer_force then
+      return prefer, (family_of(prefer) or (is_win and 'cl' or 'gcc'))
+    else
+      if vim.fn.executable(prefer) == 1 then return prefer, (family_of(prefer) or 'gcc') end
+    end
+  end
   local domain = is_win and config.toolchain.windows or config.toolchain.unix
   local candidates = (ft == 'c') and domain.c or domain.cpp
   for _, name in ipairs(candidates) do
-    if name == 'gcc' or name == 'g++' then
-      if vim.fn.executable(name) == 1 then return name, 'gcc' end
-    elseif name == 'clang' or name == 'clang++' then
-      if vim.fn.executable(name) == 1 then return name, 'clang' end
-    elseif name == 'cl' then
-      if vim.fn.executable('cl') == 1 then return 'cl', 'cl' end
+    if vim.fn.executable(name) == 1 then
+      return name, (family_of(name) or 'gcc')
     end
   end
   return nil, nil
 end
 
 local function build_cmd(config, is_win, ft, sources, out)
-  local _, family = choose_compiler(config, is_win, ft)
+  local name, family = choose_compiler(config, is_win, ft)
   if not family then return nil end
   if family == 'cl' then
     local args = { 'cl', '/Zi', '/Od' }
@@ -198,14 +210,14 @@ local function build_cmd(config, is_win, ft, sources, out)
     table.insert(args, '/Fe:' .. out)
     return args
   elseif family == 'gcc' then
-    local cc = (ft == 'c') and 'gcc' or 'g++'
+    local cc = name or ((ft == 'c') and 'gcc' or 'g++')
     local cmd = { cc, '-g', '-O0', '-Wall', '-Wextra' }
     for _, s in ipairs(sources) do table.insert(cmd, s) end
     table.insert(cmd, '-o')
     table.insert(cmd, out)
     return cmd
   else
-    local cc = (ft == 'c') and 'clang' or 'clang++'
+    local cc = name or ((ft == 'c') and 'clang' or 'clang++')
     local cmd = { cc, '-g', '-O0', '-Wall', '-Wextra' }
     for _, s in ipairs(sources) do table.insert(cmd, s) end
     table.insert(cmd, '-o')

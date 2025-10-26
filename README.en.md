@@ -168,6 +168,7 @@ Example `.quick-c.json` (annotated):
     "windows": { "c": ["gcc", "cl"], "cpp": ["g++", "cl"] },
     "unix":    { "c": ["gcc", "clang"], "cpp": ["g++", "clang++"] }
   },
+  
 
   // compile_commands.json for LSP (e.g., clangd)
   "compile_commands": {
@@ -229,6 +230,12 @@ Example `.quick-c.json` (annotated):
     "concurrency": 8,                       // parallel fs_scandir concurrency
   },
 
+  // Compiler preference and force mode (similar to make.prefer_force)
+  "compile": {
+    "prefer": { "c": "arm-none-eabi-gcc", "cpp": "arm-none-eabi-g++" },
+    "prefer_force": false
+  },
+
   // Default keymaps (customizable/disable-able); injected only when keymaps.enabled != false
   "keymaps": {
     "build": "<leader>cb",
@@ -255,6 +262,10 @@ require('quick-c').setup({
     windows = { c = { 'gcc', 'cl' }, cpp = { 'g++', 'cl' } },
     unix    = { c = { 'gcc', 'clang' }, cpp = { 'g++', 'clang++' } },
   },
+  compile = {  -- It only works when you want to use custom tools. And make.prefer_force = true
+    prefer = { c = nil, cpp = nil }, -- such c = i686-gcc-elf
+    prefer_force = false,
+  },
   make = {
     prefer = { 'make', 'mingw32-make' },
     cache = { ttl = 10 },
@@ -262,6 +273,12 @@ require('quick-c').setup({
   },
   diagnostics = {
     quickfix = { open = 'warning', jump = 'warning', use_telescope = true },
+  },
+  -- Force a specific compiler name (useful for cross toolchains). When prefer_force = true,
+  -- the name is used even if not found in PATH (may fail to run; expected consequence).
+  compile = {
+    prefer = { c = 'arm-none-eabi-gcc', cpp = 'arm-none-eabi-g++' },
+    prefer_force = false,
   },
   debug = {
     search = {
@@ -459,6 +476,15 @@ When multiple results are found, Telescope shows paths relative to `:pwd` for cl
 - Cannot send to terminal: if BetterTerm fails, the plugin falls back to the native terminal automatically.
 - Cannot run executable: build first with `:QuickCBuild`; also check output directory and `.exe` on Windows.
 - No make targets found: ensure a Makefile exists and `make -qp` works in that directory; on Windows try `mingw32-make`.
+
+### FAQ
+
+- Where is the executable written?
+  - Controlled by `outdir`:
+    - `"source"`: write to the source file's directory (default)
+    - otherwise: your custom directory (relative to `:pwd` or absolute path)
+  - Example: with `outdir = "build/bin"`, `a.c` produces `./build/bin/a.exe` (Windows) or `./build/bin/a.out` (Unix).
+  - If `QuickCRun/QuickCDebug` cannot find the program: verify `outdir` or add your artifact directory to `debug.search.dirs` (e.g., `./build/bin`).
 
 
 ## 📋 Release notes
