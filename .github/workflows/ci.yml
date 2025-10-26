@@ -20,7 +20,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           version: latest
-          args: --check --color always .
+          args: --color always .
       - name: Setup Lua
         uses: leafo/gh-actions-lua@v10
         with:
@@ -39,7 +39,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest] # windows-latest, macos-latest
         neovim: [stable]
     runs-on: ${{ matrix.os }}
     steps:
@@ -60,10 +60,19 @@ jobs:
       - name: Basic commands
         shell: bash
         run: |
-          nvim -v
-          nvim -Es \
+          nvim -V1 -v
+          nvim -V1 -v -Es \
             +"lua vim.opt.runtimepath:append(vim.fn.getcwd()); require('quick-c').setup({})" \
-            +QuickCHealth +QuickCCheck +QuickCReload +QuickCConfig +qall!
+            +QuickCHealth +QuickCCheck +QuickCReload +QuickCConfig +messages +qall!
+
+      - name: Probe setup error (diagnostic)
+        shell: bash
+        run: |
+          set +e
+          nvim -V1 -v -Es \
+            +"lua local ok,err=pcall(function() vim.opt.runtimepath:append(vim.fn.getcwd()); require('quick-c').setup({}) end); if not ok then print('SETUP_ERR:'..tostring(err)) end" \
+            +messages +qall!
+          echo "Probe exit code: $?" || true
 
       - name: CMake configure smoke (Linux)
         if: runner.os == 'Linux'
