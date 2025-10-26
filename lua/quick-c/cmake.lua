@@ -175,6 +175,100 @@ function M.build_in_root(config, root, target, run_terminal)
     if not ok then U.notify_err('CMake 配置失败') return end
     local cmargs = (config.cmake and config.cmake.args) or {}
     local extra = ''
+    local function proceed(arg_extra)
+      local args = cmake_build_cmd(config, bdir, target, arg_extra or '')
+      local diagcfg = (config.diagnostics and config.diagnostics.quickfix) or {}
+      local qf_enabled = (diagcfg.enabled ~= false)
+      if not qf_enabled then
+        local cmdline = table.concat(args, ' ')
+        run_terminal(cmdline)
+        return
+      end
+      local all = {}
+      local jid = vim.fn.jobstart(args, {
+        stdout_buffered = true,
+        stderr_buffered = true,
+        on_stdout = function(_, d) if d then for _, l in ipairs(d) do table.insert(all, l) end end end,
+        on_stderr = function(_, d) if d then for _, l in ipairs(d) do table.insert(all, l) end end end,
+        on_exit = function(_, code)
+          -- parse diagnostics (gcc/clang/msvc)
+          local function parse_diagnostics(lines)
+            local items, has_error, has_warning = {}, false, false
+            local function clean_path(p)
+              if not p or p == '' then return p end
+              p = p:gsub('^%s+', ''):gsub('%s+$', '')
+              p = p:gsub('^"(.+)"$', '%1'):gsub("^'(.-)'$", '%1')
+              return p
+            end
+            for _, l in ipairs(lines or {}) do
+              if type(l) ~= 'string' or l == '' then goto continue end
+              local f, ln, col, typ, msg = l:match("^(.+):(%d+):(%d+):%s*(%w+)%s*:%s*(.+)$")
+              if f then
+                local it = { filename = clean_path(f), lnum = tonumber(ln), col = tonumber(col), text = msg, type = (typ == 'error' and 'E' or 'W') }
+                if it.type == 'E' then has_error = true else has_warning = true end
+                table.insert(items, it)
+                goto continue
+              end
+              local f2, ln2, typ2, msg2 = l:match("^(.+):(%d+):%s*(%w+)%s*:%s*(.+)$")
+              if f2 then
+                local it = { filename = clean_path(f2), lnum = tonumber(ln2), col = 1, text = msg2, type = (typ2 == 'error' and 'E' or 'W') }
+                if it.type == 'E' then has_error = true else has_warning = true end
+                table.insert(items, it)
+                goto continue
+              end
+              local fm, lnm, typm, msgm = l:match("^%s*(.-)%((%d+)%)%s*:%s*(%w+)[^:]*:%s*(.+)$")
+              if fm then
+                local it = { filename = clean_path(fm), lnum = tonumber(lnm), col = 1, text = msgm, type = (typm:lower() == 'error' and 'E' or 'W') }
+                if it.type == 'E' then has_error = true else has_warning = true end
+                table.insert(items, it)
+                goto continue
+              end
+              ::continue::
+            end
+            return items, has_error, has_warning
+          end
+          local items, has_error, has_warning = parse_diagnostics(all)
+          if #items > 0 then
+            vim.fn.setqflist({}, ' ', { title = 'Quick-c CMake Build', items = items })
+            local function should_open()
+              if diagcfg.open == 'always' then return true end
+              if diagcfg.open == 'error' and has_error then return true end
+              if diagcfg.open == 'warning' and (has_error or has_warning) then return true end
+              return false
+            end
+            local function should_jump()
+              if diagcfg.jump == 'always' then return true end
+              if diagcfg.jump == 'error' and has_error then return true end
+              if diagcfg.jump == 'warning' and (has_error or has_warning) then return true end
+              return false
+            end
+            if should_open() then
+              if diagcfg.use_telescope then
+                local ok_tb, tb = pcall(require, 'telescope.builtin')
+                if ok_tb then tb.quickfix() else vim.cmd('copen') end
+              else
+                vim.cmd('copen')
+              end
+            end
+            if should_jump() then
+              local cur = vim.api.nvim_get_current_buf()
+              local name = vim.api.nvim_buf_get_name(cur)
+              local modified = false
+              pcall(function() modified = vim.api.nvim_buf_get_option(cur, 'modified') end)
+              if not (name == '' and modified) then pcall(vim.cmd, 'silent! keepalt keepjumps cc') end
+            end
+          else
+            if code == 0 then vim.fn.setqflist({}) end
+          end
+          if code == 0 then U.notify_info('CMake Build OK') else U.notify_err('CMake Build failed (' .. code .. ')') end
+        end,
+      })
+      if jid <= 0 then
+        -- fallback to terminal
+        local cmdline = table.concat(args, ' ')
+        run_terminal(cmdline)
+      end
+    end
     if cmargs.prompt ~= false then
       local def = cmargs.default or ''
       local key = U.norm(bdir)
@@ -184,14 +278,12 @@ function M.build_in_root(config, root, target, run_terminal)
       if ui.input then
         ui.input({ prompt = 'cmake 构建参数: ', default = def }, function(arg)
           if cmargs.remember ~= false and arg and arg ~= '' then vim.g.quick_c_cmake_last_args[key] = arg end
-          local cmd = table.concat(cmake_build_cmd(config, bdir, target, arg or ''), ' ')
-          run_terminal(cmd)
+          proceed(arg)
         end)
         return
       end
     end
-    local cmd = table.concat(cmake_build_cmd(config, bdir, target, extra), ' ')
-    run_terminal(cmd)
+    proceed(extra)
   end)
 end
 
