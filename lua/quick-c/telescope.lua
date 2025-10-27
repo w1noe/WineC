@@ -157,15 +157,29 @@ function M.telescope_build_logs(config)
     end
   end
   scandir(base)
-  table.sort(files)
-  if #files == 0 then
+  -- collect stats (mtime) and build display strings
+  local stats = {}
+  for _, p in ipairs(files) do
+    local st = uv.fs_stat(p) or {}
+    local mtime = (st.mtime and (st.mtime.sec or st.mtime)) or 0
+    local rel = vim.fn.fnamemodify(p, ':.')
+    if rel == p then
+      rel = vim.fn.fnamemodify(p, ':t')
+    end
+    local timestr = os.date('%Y-%m-%d %H:%M:%S', mtime)
+    table.insert(stats, { path = p, rel = rel, mtime = mtime, timestr = timestr })
+  end
+  table.sort(stats, function(a, b)
+    return (a.mtime or 0) > (b.mtime or 0)
+  end)
+  if #stats == 0 then
     vim.notify('没有可用的构建日志', vim.log.levels.WARN)
     return
   end
   local entries = {}
-  for _, p in ipairs(files) do
-    local rel = vim.fn.fnamemodify(p, ':.')
-    table.insert(entries, { display = rel, value = p, ordinal = rel })
+  for _, it in ipairs(stats) do
+    local disp = string.format('%s  %s', it.timestr, it.rel)
+    table.insert(entries, { display = disp, value = it.path, ordinal = it.rel .. ' ' .. it.timestr })
   end
   pickers
     .new({}, {

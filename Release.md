@@ -13,11 +13,13 @@
 ### 修复
 - 修复 Lua 模式串错误：`make.lua` 内 `%` 匹配导致的 “malformed pattern (ends with '%')”。
 - 修复 Telescope 回调在无选中项时访问 `entry` 导致的错误（`attempt to index local 'entry' (a nil value)`）。
+- 修复 keys.lua 中辅助函数定义顺序导致的运行时报错（先使用 `disabled` 再定义）。
 
 ### 改进
 - Quickfix 打开逻辑更稳健：优先使用内置增强视图，不可用时回退到 `telescope.builtin.quickfix`，再次回退 `:copen`。
 - 构建失败时也可从“构建日志浏览器”反复查看完整输出，便于排错复盘。
 - 日志预览跨平台实现（buffer 读取），不依赖 shell 工具。
+- 日志浏览器显示相对路径（过长时回退文件名），附带修改时间，并按时间倒序排列。
 
 ### 兼容性
 - 无破坏性变更；默认键位新增 `<leader>cqL`。
