@@ -1,4 +1,4 @@
-local U = require('quick-c.util')
+local U = require 'quick-c.util'
 local M = {}
 
 local _cache = {
@@ -13,10 +13,14 @@ local function _config_stamp(bdir)
   local uv = vim.loop
   local cache = U.join(bdir, 'CMakeCache.txt')
   local st = uv.fs_stat(cache)
-  if st and st.mtime then return tostring(st.mtime.sec or st.mtime) end
+  if st and st.mtime then
+    return tostring(st.mtime.sec or st.mtime)
+  end
   local dir = U.join(bdir, 'CMakeFiles')
   st = uv.fs_stat(dir)
-  if st and st.mtime then return tostring(st.mtime.sec or st.mtime) end
+  if st and st.mtime then
+    return tostring(st.mtime.sec or st.mtime)
+  end
   return '0'
 end
 local function _ttl()
@@ -25,11 +29,17 @@ end
 
 local function choose_cmake(config)
   local pref = (config.cmake or {}).prefer
-  local function is_exec(x) return x and vim.fn.executable(x) == 1 end
-  if type(pref) == 'string' and pref ~= '' then
-    if is_exec(pref) then return pref end
+  local function is_exec(x)
+    return x and vim.fn.executable(x) == 1
   end
-  if is_exec('cmake') then return 'cmake' end
+  if type(pref) == 'string' and pref ~= '' then
+    if is_exec(pref) then
+      return pref
+    end
+  end
+  if is_exec 'cmake' then
+    return 'cmake'
+  end
   return nil
 end
 
@@ -47,7 +57,10 @@ end
 function M.find_root_async(config, start_dir, cb)
   local key = U.norm(start_dir)
   local ent = _cache.root[key]
-  if ent and (_now() - ent.t) < _ttl() then cb(ent.v) return end
+  if ent and (_now() - ent.t) < _ttl() then
+    cb(ent.v)
+    return
+  end
   local cfg = (config.cmake or {}).search or {}
   local up = tonumber(cfg.up) or 2
   local down = tonumber(cfg.down) or 3
@@ -56,12 +69,18 @@ function M.find_root_async(config, start_dir, cb)
 
   local seen = {}
   local function is_ignored(name)
-    for _, n in ipairs(ignore) do if name == n then return true end end
+    for _, n in ipairs(ignore) do
+      if name == n then
+        return true
+      end
+    end
     return false
   end
   local function parent(dir)
     local p = vim.fn.fnamemodify(dir, ':h')
-    if p == nil or p == '' then return dir end
+    if p == nil or p == '' then
+      return dir
+    end
     return p
   end
 
@@ -71,26 +90,39 @@ function M.find_root_async(config, start_dir, cb)
     local cur = start_dir
     for _ = 0, up do
       local cur_norm = U.norm(cur)
-      if not cur_norm:find(cwd_root, 1, true) then break end
+      if not cur_norm:find(cwd_root, 1, true) then
+        break
+      end
       table.insert(bases, cur)
       local nextp = parent(cur)
-      if nextp == cur then break end
+      if nextp == cur then
+        break
+      end
       local next_norm = U.norm(nextp)
-      if #next_norm < #cwd_root or not next_norm:find(cwd_root, 1, true) then break end
+      if #next_norm < #cwd_root or not next_norm:find(cwd_root, 1, true) then
+        break
+      end
       cur = nextp
     end
   end
 
   local queue = {}
-  for _, b in ipairs(bases) do table.insert(queue, { dir = b, depth = 0 }) end
+  for _, b in ipairs(bases) do
+    table.insert(queue, { dir = b, depth = 0 })
+  end
 
   local function scandir_async(dir, ondone)
     uv.fs_scandir(dir, function(err, req)
-      if err or not req then ondone({}) return end
+      if err or not req then
+        ondone {}
+        return
+      end
       local out = {}
       while true do
         local name, t = uv.fs_scandir_next(req)
-        if not name then break end
+        if not name then
+          break
+        end
         out[#out + 1] = { name = name, type = t }
       end
       ondone(out)
@@ -100,12 +132,25 @@ function M.find_root_async(config, start_dir, cb)
   local scanning = false
   local found = false
   local function step()
-    if scanning or found then return end
+    if scanning or found then
+      return
+    end
     scanning = true
     local item = table.remove(queue, 1)
-    if not item then scanning = false _cache.root[key] = { v = start_dir, t = _now() } cb(start_dir) return end
+    if not item then
+      scanning = false
+      _cache.root[key] = { v = start_dir, t = _now() }
+      cb(start_dir)
+      return
+    end
     local dir, depth = item.dir, item.depth
-    if find_cmakelists(dir) then scanning = false found = true _cache.root[key] = { v = dir, t = _now() } cb(dir) return end
+    if find_cmakelists(dir) then
+      scanning = false
+      found = true
+      _cache.root[key] = { v = dir, t = _now() }
+      cb(dir)
+      return
+    end
     if depth < down then
       scandir_async(dir, function(entries)
         for _, e in ipairs(entries) do
@@ -113,19 +158,32 @@ function M.find_root_async(config, start_dir, cb)
             if not is_ignored(e.name) then
               local subdir = U.join(dir, e.name)
               local key = U.norm(subdir)
-              if not seen[key] then seen[key] = true table.insert(queue, { dir = subdir, depth = depth + 1 }) end
+              if not seen[key] then
+                seen[key] = true
+                table.insert(queue, { dir = subdir, depth = depth + 1 })
+              end
             else
               local subdir = U.join(dir, e.name)
-              if find_cmakelists(subdir) then scanning = false found = true _cache.root[key] = { v = subdir, t = _now() } cb(subdir) return end
+              if find_cmakelists(subdir) then
+                scanning = false
+                found = true
+                _cache.root[key] = { v = subdir, t = _now() }
+                cb(subdir)
+                return
+              end
             end
           end
         end
         scanning = false
-        if not found then vim.defer_fn(step, 1) end
+        if not found then
+          vim.defer_fn(step, 1)
+        end
       end)
     else
       scanning = false
-      if not found then vim.defer_fn(step, 1) end
+      if not found then
+        vim.defer_fn(step, 1)
+      end
     end
   end
   step()
@@ -139,8 +197,10 @@ end
 
 local function build_dir_for(config, root)
   local b = (config.cmake and config.cmake.build_dir) or 'build'
-  if not b or b == '' then b = 'build' end
-  if b:sub(1,1) == '/' or b:match('^%a:[\\/]') or b:match('^[\\/]') then
+  if not b or b == '' then
+    b = 'build'
+  end
+  if b:sub(1, 1) == '/' or b:match '^%a:[\\/]' or b:match '^[\\/]' then
     return b
   end
   return U.join(root, b)
@@ -156,48 +216,82 @@ local function configure_args(config, root, bdir)
   local cm = choose_cmake(config) or 'cmake'
   args[1] = cm
   local gen = (config.cmake or {}).generator
-  if gen and gen ~= '' then table.insert(args, '-G'); table.insert(args, gen) end
+  if gen and gen ~= '' then
+    table.insert(args, '-G')
+    table.insert(args, gen)
+  end
   local conf = (config.cmake or {}).configure or {}
   if conf.toolchain and conf.toolchain ~= '' then
     table.insert(args, '-DCMAKE_TOOLCHAIN_FILE=' .. conf.toolchain)
   end
-  for _, ex in ipairs(conf.extra or {}) do table.insert(args, ex) end
+  for _, ex in ipairs(conf.extra or {}) do
+    table.insert(args, ex)
+  end
   return args
 end
 
 function M.ensure_configured_async(config, root, on_done)
   local bdir = build_dir_for(config, root)
-  if is_configured(config, root) then on_done(true, bdir) return end
+  if is_configured(config, root) then
+    on_done(true, bdir)
+    return
+  end
   vim.fn.mkdir(bdir, 'p')
   local cmd = configure_args(config, root, bdir)
   local all = {}
   local ok = vim.fn.jobstart(cmd, {
     stdout_buffered = true,
     stderr_buffered = true,
-    on_stdout = function(_, d) if d then for _, l in ipairs(d) do table.insert(all, l) end end end,
-    on_stderr = function(_, d) if d then for _, l in ipairs(d) do table.insert(all, l) end end end,
+    on_stdout = function(_, d)
+      if d then
+        for _, l in ipairs(d) do
+          table.insert(all, l)
+        end
+      end
+    end,
+    on_stderr = function(_, d)
+      if d then
+        for _, l in ipairs(d) do
+          table.insert(all, l)
+        end
+      end
+    end,
     on_exit = function(_, code)
-      if code == 0 then on_done(true, bdir) else on_done(false, bdir, all) end
+      if code == 0 then
+        on_done(true, bdir)
+      else
+        on_done(false, bdir, all)
+      end
     end,
   })
-  if ok <= 0 then on_done(false, bdir, { 'failed to start cmake configure' }) end
+  if ok <= 0 then
+    on_done(false, bdir, { 'failed to start cmake configure' })
+  end
 end
 
 local function cmake_build_cmd(config, bdir, target, extra)
   local cm = choose_cmake(config) or 'cmake'
   local args = { cm, '--build', bdir }
-  if target and target ~= '' then table.insert(args, '--target'); table.insert(args, target) end
+  if target and target ~= '' then
+    table.insert(args, '--target')
+    table.insert(args, target)
+  end
   if extra and extra ~= '' then
     -- pass extra after a separator if needed; keep simple: append as one string will be tokenized by shell
     table.insert(args, '--')
-    for tok in tostring(extra):gmatch('%S+') do table.insert(args, tok) end
+    for tok in tostring(extra):gmatch '%S+' do
+      table.insert(args, tok)
+    end
   end
   return args
 end
 
 function M.build_in_root(config, root, target, run_terminal)
   M.ensure_configured_async(config, root, function(ok, bdir, _)
-    if not ok then U.notify_err('CMake 配置失败') return end
+    if not ok then
+      U.notify_err 'CMake 配置失败'
+      return
+    end
     local cmargs = (config.cmake and config.cmake.args) or {}
     local extra = ''
     local function proceed(arg_extra)
@@ -205,7 +299,7 @@ function M.build_in_root(config, root, target, run_terminal)
       local diagcfg = (config.diagnostics and config.diagnostics.quickfix) or {}
       local qf_enabled = (diagcfg.enabled ~= false)
       local view = (config.cmake and config.cmake.view) or 'quickfix'
-      if (view == 'terminal') or (not qf_enabled) then
+      if (view == 'terminal') or not qf_enabled then
         local cmdline = table.concat(args, ' ')
         run_terminal(cmdline)
         return
@@ -243,8 +337,12 @@ function M.build_in_root(config, root, target, run_terminal)
         end
       end
       local function append_lines(chunk)
-        if not chunk or #chunk == 0 then return end
-        for _, l in ipairs(chunk) do table.insert(all, l) end
+        if not chunk or #chunk == 0 then
+          return
+        end
+        for _, l in ipairs(chunk) do
+          table.insert(all, l)
+        end
         if outbuf and vim.api.nvim_buf_is_valid(outbuf) then
           local existing = vim.api.nvim_buf_line_count(outbuf)
           vim.api.nvim_buf_set_lines(outbuf, existing, existing, false, chunk)
@@ -256,44 +354,74 @@ function M.build_in_root(config, root, target, run_terminal)
       local jid = vim.fn.jobstart(args, {
         stdout_buffered = false,
         stderr_buffered = false,
-        on_stdout = function(_, d) append_lines(d) end,
-        on_stderr = function(_, d) append_lines(d) end,
+        on_stdout = function(_, d)
+          append_lines(d)
+        end,
+        on_stderr = function(_, d)
+          append_lines(d)
+        end,
         on_exit = function(_, code)
           -- parse diagnostics (gcc/clang/msvc)
           local items, has_error, has_warning = U.parse_diagnostics(all)
           if #items > 0 then
             vim.fn.setqflist({}, ' ', { title = 'Quick-c CMake Build', items = items })
             local function should_open()
-              if diagcfg.open == 'always' then return true end
-              if diagcfg.open == 'error' and has_error then return true end
-              if diagcfg.open == 'warning' and (has_error or has_warning) then return true end
+              if diagcfg.open == 'always' then
+                return true
+              end
+              if diagcfg.open == 'error' and has_error then
+                return true
+              end
+              if diagcfg.open == 'warning' and (has_error or has_warning) then
+                return true
+              end
               return false
             end
             local function should_jump()
-              if diagcfg.jump == 'always' then return true end
-              if diagcfg.jump == 'error' and has_error then return true end
-              if diagcfg.jump == 'warning' and (has_error or has_warning) then return true end
+              if diagcfg.jump == 'always' then
+                return true
+              end
+              if diagcfg.jump == 'error' and has_error then
+                return true
+              end
+              if diagcfg.jump == 'warning' and (has_error or has_warning) then
+                return true
+              end
               return false
             end
             if should_open() then
               if diagcfg.use_telescope then
                 local ok_tb, tb = pcall(require, 'telescope.builtin')
-                if ok_tb then tb.quickfix() else vim.cmd('copen') end
+                if ok_tb then
+                  tb.quickfix()
+                else
+                  vim.cmd 'copen'
+                end
               else
-                vim.cmd('copen')
+                vim.cmd 'copen'
               end
             end
             if should_jump() then
               local cur = vim.api.nvim_get_current_buf()
               local name = vim.api.nvim_buf_get_name(cur)
               local modified = false
-              pcall(function() modified = vim.api.nvim_buf_get_option(cur, 'modified') end)
-              if not (name == '' and modified) then pcall(vim.cmd, 'silent! keepalt keepjumps cc') end
+              pcall(function()
+                modified = vim.api.nvim_buf_get_option(cur, 'modified')
+              end)
+              if not (name == '' and modified) then
+                pcall(vim.cmd, 'silent! keepalt keepjumps cc')
+              end
             end
           else
-            if code == 0 then vim.fn.setqflist({}) end
+            if code == 0 then
+              vim.fn.setqflist {}
+            end
           end
-          if code == 0 then U.notify_info('CMake Build OK') else U.notify_err('CMake Build failed (' .. code .. ')') end
+          if code == 0 then
+            U.notify_info 'CMake Build OK'
+          else
+            U.notify_err('CMake Build failed (' .. code .. ')')
+          end
         end,
       })
       if jid <= 0 then
@@ -306,11 +434,15 @@ function M.build_in_root(config, root, target, run_terminal)
       local def = cmargs.default or ''
       local key = U.norm(bdir)
       vim.g.quick_c_cmake_last_args = vim.g.quick_c_cmake_last_args or {}
-      if cmargs.remember ~= false then def = vim.g.quick_c_cmake_last_args[key] or def end
+      if cmargs.remember ~= false then
+        def = vim.g.quick_c_cmake_last_args[key] or def
+      end
       local ui = vim.ui or {}
       if ui.input then
         ui.input({ prompt = 'cmake 构建参数: ', default = def }, function(arg)
-          if cmargs.remember ~= false and arg and arg ~= '' then vim.g.quick_c_cmake_last_args[key] = arg end
+          if cmargs.remember ~= false and arg and arg ~= '' then
+            vim.g.quick_c_cmake_last_args[key] = arg
+          end
           proceed(arg)
         end)
         return
@@ -321,7 +453,7 @@ function M.build_in_root(config, root, target, run_terminal)
 end
 
 function M.run_build_from_current(config, target, run_terminal)
-  local base = vim.fn.fnamemodify(vim.fn.expand('%:p'), ':h')
+  local base = vim.fn.fnamemodify(vim.fn.expand '%:p', ':h')
   resolve_root_async(config, base, function(root)
     M.build_in_root(config, root, target, run_terminal)
   end)
@@ -330,10 +462,14 @@ end
 function M.configure_from_current(config, notify)
   local ninfo = (type(notify) == 'table' and notify.info) or U.notify_info
   local nerr = (type(notify) == 'table' and notify.err) or U.notify_err
-  local base = vim.fn.fnamemodify(vim.fn.expand('%:p'), ':h')
+  local base = vim.fn.fnamemodify(vim.fn.expand '%:p', ':h')
   resolve_root_async(config, base, function(root)
     M.ensure_configured_async(config, root, function(ok)
-      if ok then ninfo('CMake 配置完成') else nerr('CMake 配置失败') end
+      if ok then
+        ninfo 'CMake 配置完成'
+      else
+        nerr 'CMake 配置失败'
+      end
     end)
   end)
 end
@@ -342,18 +478,34 @@ end
 local function parse_targets_from_help(lines)
   local seen, out = {}, {}
   local function add(name)
-    if not name or name == '' then return end
-    if not seen[name] then seen[name] = true table.insert(out, name) end
+    if not name or name == '' then
+      return
+    end
+    if not seen[name] then
+      seen[name] = true
+      table.insert(out, name)
+    end
   end
   for _, l in ipairs(lines or {}) do
-    if type(l) ~= 'string' then goto continue end
+    if type(l) ~= 'string' then
+      goto continue
+    end
     local s = l:gsub('^%s+', '')
-    local a = s:match('^%.+%s+([%w%._%-%+/]+)')
-    if a then add(a:gsub(':.*$', '')) goto continue end
-    local b = s:match("^target%s+'([^']+)'") or s:match('^target%s+"([^"]+)"')
-    if b then add(b) goto continue end
-    local c = s:match('^([%w%._%-%+/]+)%s*:%s*')
-    if c and c ~= 'all' and c ~= 'help' then add(c) goto continue end
+    local a = s:match '^%.+%s+([%w%._%-%+/]+)'
+    if a then
+      add(a:gsub(':.*$', ''))
+      goto continue
+    end
+    local b = s:match "^target%s+'([^']+)'" or s:match '^target%s+"([^"]+)"'
+    if b then
+      add(b)
+      goto continue
+    end
+    local c = s:match '^([%w%._%-%+/]+)%s*:%s*'
+    if c and c ~= 'all' and c ~= 'help' then
+      add(c)
+      goto continue
+    end
     ::continue::
   end
   table.sort(out)
@@ -362,25 +514,45 @@ end
 
 function M.list_targets_async(config, root, cb)
   M.ensure_configured_async(config, root, function(ok, bdir)
-    if not ok then cb({}) return end
+    if not ok then
+      cb {}
+      return
+    end
     local k = U.norm(bdir)
     local cur_stamp = _config_stamp(bdir)
     local ent = _cache.targets[k]
-    if ent and ent.stamp == cur_stamp and (_now() - ent.t) < _ttl() then cb(ent.v) return end
+    if ent and ent.stamp == cur_stamp and (_now() - ent.t) < _ttl() then
+      cb(ent.v)
+      return
+    end
     local cmd = { choose_cmake(config) or 'cmake', '--build', bdir, '--target', 'help' }
     local lines = {}
     local jid = vim.fn.jobstart(cmd, {
       stdout_buffered = true,
       stderr_buffered = true,
-      on_stdout = function(_, d) if d then for _, l in ipairs(d) do table.insert(lines, l) end end end,
-      on_stderr = function(_, d) if d then for _, l in ipairs(d) do table.insert(lines, l) end end end,
+      on_stdout = function(_, d)
+        if d then
+          for _, l in ipairs(d) do
+            table.insert(lines, l)
+          end
+        end
+      end,
+      on_stderr = function(_, d)
+        if d then
+          for _, l in ipairs(d) do
+            table.insert(lines, l)
+          end
+        end
+      end,
       on_exit = function()
         local targets = parse_targets_from_help(lines)
         _cache.targets[k] = { v = targets, t = _now(), stamp = cur_stamp }
         cb(targets)
       end,
     })
-    if jid <= 0 then cb({}) end
+    if jid <= 0 then
+      cb {}
+    end
   end)
 end
 
