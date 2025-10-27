@@ -313,7 +313,7 @@ require("quick-c").setup({
         -- 当 mode = 'use' 时，从该路径复制 compile_commands.json 到 outdir
         -- 例如：vim.fn.getcwd().."/compile_commands.json"
         use_path = nil,
-      },
+      }},
       
       terminal = {
         -- 运行时是否自动打开内置终端窗口
