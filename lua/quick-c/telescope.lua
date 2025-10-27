@@ -226,6 +226,10 @@ function M.telescope_make(
 
             local function choose(pbuf)
               local entry = action_state.get_selected_entry()
+              if not entry then
+                actions.close(pbuf)
+                return
+              end
               actions.close(pbuf)
               if entry.kind == 'args' then
                 local def = mkargs.default or ''
@@ -371,6 +375,10 @@ function M.telescope_cmake(config)
             local action_state = require 'telescope.actions.state'
             local function choose(pbuf)
               local entry = action_state.get_selected_entry()
+              if not entry then
+                actions.close(pbuf)
+                return
+              end
               actions.close(pbuf)
               if entry.kind == 'configure' then
                 local notify = { err = U.notify_err, warn = U.notify_warn, info = U.notify_info }
