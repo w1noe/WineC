@@ -45,12 +45,12 @@
   - 视图模式：`both`（默认，流式输出+quickfix）/`quickfix`/`terminal`
   - 输出面板：`cmake.output.{open,height}` 控制
 - 🔭 **Telescope 增强**：内置 Makefile 预览、源文件多选、快捷切换 .PHONY
+- 🧪 **Quickfix 增强预览**：`cqf` 打开时右侧显示错误详情与源码上下文
 - 🖥️ **BetterTerm/内置终端**：自动选择/复用终端、跨平台兼容
 - 📦 **多文件构建**：支持一次构建/运行多个源文件
 - 📝 **自定义命令**：`QuickCMakeCmd` 自定义完整命令（预填 `<prefer> -C <cwd>`，可编辑后发送到终端）
 - ✅ **配置检查**：`QuickCCheck` 检查配置（类型/路径/可执行性）并输出报告
 - 🧠 **LSP 集成**：一键为当前文件目录生成或使用指定 `compile_commands.json` 供 clangd 等 LSP 使用
-- 🔎 **快速跳转**：构建时自动解析错误与警告，支持 Telescope 快速跳转
 
 ## 📦 依赖
 
@@ -85,6 +85,7 @@
     { "<leader>cqM", desc = "Quick-c: Make targets (Telescope)" },
     { "<leader>cqS", desc = "Quick-c: Select sources (Telescope)" }, -- 使用tab进行多选
     { "<leader>cqf", desc = "Quick-c: Open quickfix (Telescope)" },
+    { "<leader>cqL", desc = "Quick-c: Build logs (Telescope)" },
     { "<leader>cqC", desc = "Quick-c: CMake targets (Telescope)" },
     { "<leader>cqB", desc = "Quick-c: CMake build" },
     { "<leader>cqc", desc = "Quick-c: CMake configure" },
@@ -313,7 +314,7 @@ require("quick-c").setup({
         -- 当 mode = 'use' 时，从该路径复制 compile_commands.json 到 outdir
         -- 例如：vim.fn.getcwd().."/compile_commands.json"
         use_path = nil,
-      },
+      }},
       
       terminal = {
         -- 运行时是否自动打开内置终端窗口
@@ -406,6 +407,7 @@ require("quick-c").setup({
         cmake_configure = '<leader>cqc',
         sources = '<leader>cqS',
         quickfix = '<leader>cqf',
+        logs = '<leader>cqL',
       },
     })
   end,
@@ -440,7 +442,7 @@ require("quick-c").setup({
 
 - 构建时会解析 gcc/clang/MSVC 输出为 quickfix 项，支持错误与警告。
 - 满足触发条件时自动打开列表并跳转到第一条；默认仅有错误时打开/跳转。
-- 如已安装 Telescope，默认使用 `:Telescope quickfix` 打开（可在配置关闭）。
+- 如已安装 Telescope，默认使用“增强版 Quickfix 选择器”，右侧显示该条目的错误详情与源码上下文；不可用时回退 `:Telescope quickfix`，再回退 `:copen`。
 
 提示：若当前缓冲是“未命名且已修改”，为避免保存提示，自动跳转（`cc`）将被跳过，此时请在 quickfix 中手动选择条目即可。
 

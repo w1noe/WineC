@@ -1,4 +1,4 @@
-local U = require('quick-c.util')
+local U = require 'quick-c.util'
 
 local CC = {}
 
@@ -7,7 +7,7 @@ local function is_win()
 end
 
 local function gather_current_source()
-  return vim.fn.expand('%:p')
+  return vim.fn.expand '%:p'
 end
 
 local function choose_compiler(config, ft)
@@ -15,11 +15,17 @@ local function choose_compiler(config, ft)
   local candidates = (ft == 'c') and domain.c or domain.cpp
   for _, name in ipairs(candidates) do
     if name == 'gcc' or name == 'g++' then
-      if vim.fn.executable(name) == 1 then return name, 'gcc' end
+      if vim.fn.executable(name) == 1 then
+        return name, 'gcc'
+      end
     elseif name == 'clang' or name == 'clang++' then
-      if vim.fn.executable(name) == 1 then return name, 'clang' end
+      if vim.fn.executable(name) == 1 then
+        return name, 'clang'
+      end
     elseif name == 'cl' then
-      if vim.fn.executable('cl') == 1 then return 'cl', 'cl' end
+      if vim.fn.executable 'cl' == 1 then
+        return 'cl', 'cl'
+      end
     end
   end
   return nil, nil
@@ -27,7 +33,9 @@ end
 
 local function build_compile_command(config, ft, source, out)
   local _, family = choose_compiler(config, ft)
-  if not family then return nil end
+  if not family then
+    return nil
+  end
   if family == 'cl' then
     local args = { 'cl', '/Zi', '/Od', source, '/Fe:' .. out }
     return table.concat(args, ' ')
@@ -64,26 +72,28 @@ end
 
 local function copy_file(src, dst)
   local data = vim.fn.readfile(src)
-  if not data or #data == 0 then return false end
+  if not data or #data == 0 then
+    return false
+  end
   return vim.fn.writefile(data, dst) == 0
 end
 
 function CC.generate(config, notify)
   local ft = vim.bo.filetype
   if ft ~= 'c' and ft ~= 'cpp' then
-    notify.warn('仅支持 c/cpp 文件')
+    notify.warn '仅支持 c/cpp 文件'
     return
   end
   local source = gather_current_source()
   if source == nil or source == '' then
-    notify.warn('未找到源码文件')
+    notify.warn '未找到源码文件'
     return
   end
   local source_dir = vim.fn.fnamemodify(source, ':p:h')
   local exe = resolve_out_path(config, source)
   local cmdline = build_compile_command(config, ft, source, exe)
   if not cmdline then
-    notify.err('未找到可用编译器')
+    notify.err '未找到可用编译器'
     return
   end
   local entry = {
@@ -92,7 +102,7 @@ function CC.generate(config, notify)
     command = cmdline,
   }
   local path = resolve_target_path(config.compile_commands, source_dir)
-  local ok = vim.fn.writefile({ vim.json.encode({ entry }) }, path) == 0
+  local ok = vim.fn.writefile({ vim.json.encode { entry } }, path) == 0
   if ok then
     notify.info('已生成 ' .. path)
   else
@@ -104,7 +114,7 @@ function CC.use_external(config, notify)
   local ccfg = config.compile_commands or {}
   local src = ccfg.use_path
   if not src or src == '' then
-    notify.warn('未设置 compile_commands 路径')
+    notify.warn '未设置 compile_commands 路径'
     return
   end
   if vim.fn.filereadable(src) ~= 1 then

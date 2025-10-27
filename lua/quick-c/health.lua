@@ -8,18 +8,20 @@ local function check_execs()
   local ok = true
   local msgs = {}
   local function add(stat, msg)
-    table.insert(msgs, string.format("[%s] %s", stat and "OK" or "WARN", msg))
-    if not stat then ok = false end
+    table.insert(msgs, string.format('[%s] %s', stat and 'OK' or 'WARN', msg))
+    if not stat then
+      ok = false
+    end
   end
   -- compilers
-  add(is_exec('gcc') or is_exec('clang') or is_exec('cl'), 'Found a C compiler (gcc/clang/cl) in PATH')
-  add(is_exec('g++') or is_exec('clang++') or is_exec('cl'), 'Found a C++ compiler (g++/clang++/cl) in PATH')
+  add(is_exec 'gcc' or is_exec 'clang' or is_exec 'cl', 'Found a C compiler (gcc/clang/cl) in PATH')
+  add(is_exec 'g++' or is_exec 'clang++' or is_exec 'cl', 'Found a C++ compiler (g++/clang++/cl) in PATH')
   -- make tools
-  add(is_exec('make') or is_exec('mingw32-make') or is_exec('nmake'), 'Found a make tool (make/mingw32-make/nmake)')
+  add(is_exec 'make' or is_exec 'mingw32-make' or is_exec 'nmake', 'Found a make tool (make/mingw32-make/nmake)')
   -- cmake
-  add(is_exec('cmake'), 'Found cmake')
+  add(is_exec 'cmake', 'Found cmake')
   -- dap debugger (optional)
-  add(is_exec('codelldb') or is_exec('lldb') or is_exec('lldb-vscode'), 'Found codelldb/lldb (optional, for Debug)')
+  add(is_exec 'codelldb' or is_exec 'lldb' or is_exec 'lldb-vscode', 'Found codelldb/lldb (optional, for Debug)')
   return ok, msgs
 end
 

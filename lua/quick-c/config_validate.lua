@@ -1,33 +1,106 @@
 local V = {}
 
-local U = require('quick-c.util')
-local MK = require('quick-c.make')
-local PROJECT_CONFIG = require('quick-c.project_config')
+local U = require 'quick-c.util'
+local MK = require 'quick-c.make'
+local PROJECT_CONFIG = require 'quick-c.project_config'
 
 local function add(report, level, msg)
   table.insert(report.messages, { level = level, text = msg })
-  if level == 'error' then report.ok = false end
+  if level == 'error' then
+    report.ok = false
+  end
 end
 
-local function is_str(x) return type(x) == 'string' end
-local function is_tbl(x) return type(x) == 'table' end
-local function is_bool(x) return type(x) == 'boolean' end
-local function is_num(x) return type(x) == 'number' end
+local function is_str(x)
+  return type(x) == 'string'
+end
+local function is_tbl(x)
+  return type(x) == 'table'
+end
+local function is_bool(x)
+  return type(x) == 'boolean'
+end
+local function is_num(x)
+  return type(x) == 'number'
+end
+local function tbl_is_list(t)
+  if type(t) ~= 'table' then
+    return false
+  end
+  if vim.tbl_islist then
+    return vim.tbl_islist(t)
+  end
+  local max = 0
+  for k, _ in pairs(t) do
+    if type(k) ~= 'number' then
+      return false
+    end
+    if k > max then
+      max = k
+    end
+  end
+  for i = 1, max do
+    if t[i] == nil then
+      return false
+    end
+  end
+  return true
+end
 
 local function resolve_cwd(config)
   local cwd = config.make and config.make.cwd or nil
-  if not cwd or cwd == '' then return nil end
+  if not cwd or cwd == '' then
+    return nil
+  end
   local is_abs
   if U.is_windows() then
-    is_abs = cwd:match('^%a:[\\/]') or cwd:match('^[\/]') or cwd:match('^\\\\')
+    is_abs = cwd:match '^%a:[\\/]' or cwd:match '^[/]' or cwd:match '^\\\\'
   else
-    is_abs = cwd:sub(1,1) == '/'
+    is_abs = cwd:sub(1, 1) == '/'
   end
   if not is_abs then
-    local base = vim.fn.fnamemodify(vim.fn.expand('%:p'), ':h')
+    local base = vim.fn.fnamemodify(vim.fn.expand '%:p', ':h')
     cwd = vim.fn.fnamemodify(U.join(base, cwd), ':p')
   end
   return cwd
+end
+local function validate_prefer_value(report, value, path, visited)
+  visited = visited or {}
+  path = path or 'make.prefer'
+  if value == nil then
+    return
+  end
+  local t = type(value)
+  if t == 'string' then
+    return
+  end
+  if t ~= 'table' then
+    add(report, 'warn', path .. ' 应为字符串、字符串数组或按平台划分的表')
+    return
+  end
+  if visited[value] then
+    return
+  end
+  visited[value] = true
+  if tbl_is_list(value) then
+    for i, v in ipairs(value) do
+      if type(v) ~= 'string' then
+        add(report, 'warn', string.format('%s[%d] 应为字符串', path, i))
+      end
+    end
+    return
+  end
+  local has_child = false
+  for key, child in pairs(value) do
+    has_child = true
+    if type(key) ~= 'string' then
+      add(report, 'warn', path .. ' 的键必须为字符串（例如 windows/unix/default）')
+    end
+    validate_prefer_value(report, child, path .. '.' .. tostring(key), visited)
+  end
+  if not has_child then
+    add(report, 'warn', path .. ' 表为空，无法解析首选 make 程序')
+  end
 end
 
 function V.validate(config)
@@ -62,13 +135,7 @@ function V.validate(config)
     add(report, 'info', 'make is disabled (make.enabled = false)')
   end
   if mk.prefer ~= nil then
-    if is_str(mk.prefer) then
-      -- ok
-    elseif is_tbl(mk.prefer) then
-      for i, v in ipairs(mk.prefer) do if type(v) ~= 'string' then add(report, 'warn', 'make.prefer['..i..'] should be string') end end
-    else
-      add(report, 'warn', 'make.prefer should be string or list of strings')
-    end
+    validate_prefer_value(report, mk.prefer, 'make.prefer')
   end
   if mk.prefer_force ~= nil and not is_bool(mk.prefer_force) then
     add(report, 'warn', 'make.prefer_force should be boolean')
@@ -77,13 +144,21 @@ function V.validate(config)
     if not is_tbl(mk.search) then
       add(report, 'warn', 'make.search should be a table')
     else
-      if mk.search.up ~= nil and not is_num(mk.search.up) then add(report, 'warn', 'make.search.up should be a number') end
-      if mk.search.down ~= nil and not is_num(mk.search.down) then add(report, 'warn', 'make.search.down should be a number') end
+      if mk.search.up ~= nil and not is_num(mk.search.up) then
+        add(report, 'warn', 'make.search.up should be a number')
+      end
+      if mk.search.down ~= nil and not is_num(mk.search.down) then
+        add(report, 'warn', 'make.search.down should be a number')
+      end
       if mk.search.ignore_dirs ~= nil then
         if not is_tbl(mk.search.ignore_dirs) then
           add(report, 'warn', 'make.search.ignore_dirs should be a list of strings')
         else
-          for i, v in ipairs(mk.search.ignore_dirs) do if type(v) ~= 'string' then add(report, 'warn', 'make.search.ignore_dirs['..i..'] should be string') end end
+          for i, v in ipairs(mk.search.ignore_dirs) do
+            if type(v) ~= 'string' then
+              add(report, 'warn', 'make.search.ignore_dirs[' .. i .. '] should be string')
+            end
+          end
         end
       end
     end
@@ -102,11 +177,18 @@ function V.validate(config)
       local found = false
       for _, n in ipairs(names) do
         local st = uv.fs_stat(U.join(cwd, n))
-        if st and st.type == 'file' then found = true; break end
+        if st and st.type == 'file' then
+          found = true
+          break
+        end
       end
       if not found then
         local down = (mk.search and mk.search.down) or 3
-        add(report, 'warn', 'No Makefile in make.cwd; will search downward within cwd (depth = ' .. tostring(down) .. ')')
+        add(
+          report,
+          'warn',
+          'No Makefile in make.cwd; will search downward within cwd (depth = ' .. tostring(down) .. ')'
+        )
       end
     end
   else

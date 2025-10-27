@@ -1,4 +1,4 @@
-local U = require('quick-c.util')
+local U = require 'quick-c.util'
 local M = {}
 
 local target_cache = {
@@ -18,21 +18,112 @@ local function stat_makefile(cwd)
 end
 
 local function strip_quotes(s)
-  if type(s) ~= 'string' then return s end
-  local a = s:match('^%s*"(.*)"%s*$') or s:match("^%s*'(.*)'%s*$")
+  if type(s) ~= 'string' then
+    return s
+  end
+  local a = s:match '^%s*"(.*)"%s*$' or s:match "^%s*'(.*)'%s*$"
   return a or s
+end
+
+local function tbl_is_list(t)
+  if type(t) ~= 'table' then
+    return false
+  end
+  if vim.tbl_islist then
+    return vim.tbl_islist(t)
+  end
+  local max = 0
+  for k, _ in pairs(t) do
+    if type(k) ~= 'number' then
+      return false
+    end
+    if k > max then
+      max = k
+    end
+  end
+  for i = 1, max do
+    if t[i] == nil then
+      return false
+    end
+  end
+  return true
+end
+
+local function platform_prefer_keys()
+  if U.is_windows() then
+    return { 'windows', 'win32', 'win', 'default', 'fallback' }
+  end
+  local has_mac = vim.fn and vim.fn.has and (vim.fn.has 'macunix' == 1 or vim.fn.has 'mac' == 1)
+  if has_mac then
+    return { 'mac', 'macos', 'darwin', 'unix', 'posix', 'linux', 'default', 'fallback' }
+  end
+  return { 'linux', 'unix', 'posix', 'default', 'fallback' }
+end
+
+local function normalize_prefer(pref, visited)
+  visited = visited or {}
+  if type(pref) == 'string' then
+    return { pref }
+  end
+  if type(pref) ~= 'table' or visited[pref] then
+    return {}
+  end
+  visited[pref] = true
+  if tbl_is_list(pref) then
+    local acc = {}
+    for _, v in ipairs(pref) do
+      if type(v) == 'string' then
+        table.insert(acc, v)
+      elseif type(v) == 'table' then
+        local nested = normalize_prefer(v, visited)
+        for _, n in ipairs(nested) do
+          table.insert(acc, n)
+        end
+      end
+    end
+    return acc
+  end
+  local keys = platform_prefer_keys()
+  for _, key in ipairs(keys) do
+    local val = pref[key]
+    if val ~= nil then
+      local normalized = normalize_prefer(val, visited)
+      if #normalized > 0 then
+        return normalized
+      end
+      if type(val) == 'string' then
+        return { val }
+      end
+    end
+  end
+  local acc = {}
+  for _, val in pairs(pref) do
+    if type(val) == 'string' then
+      table.insert(acc, val)
+    elseif type(val) == 'table' then
+      local nested = normalize_prefer(val, visited)
+      for _, n in ipairs(nested) do
+        table.insert(acc, n)
+      end
+    end
+  end
+  return acc
 end
 
 local function can_execute_prog(p)
   local prog = strip_quotes(p)
-  if not prog or prog == '' then return false end
-  if vim.fn.executable(prog) == 1 then return true end
+  if not prog or prog == '' then
+    return false
+  end
+  if vim.fn.executable(prog) == 1 then
+    return true
+  end
   -- If it's a path, check file existence (may still fail to exec, but avoid jobstart crash)
   local is_path
   if U.is_windows() then
-    is_path = prog:match('[\\/]') or prog:match('%.exe$')
+    is_path = prog:match '[\\/]' or prog:match '%.exe$'
   else
-    is_path = prog:sub(1,1) == '/' or prog:match('[\\/]')
+    is_path = prog:sub(1, 1) == '/' or prog:match '[\\/]'
   end
   if is_path then
     local st = vim.loop.fs_stat(prog)
@@ -45,7 +136,9 @@ end
 local function choose_probe_make()
   local candidates = { 'make', 'mingw32-make', 'nmake' }
   for _, name in ipairs(candidates) do
-    if vim.fn.executable(name) == 1 then return name end
+    if vim.fn.executable(name) == 1 then
+      return name
+    end
   end
   return nil
 end
@@ -53,89 +146,140 @@ end
 function M.choose_make(config)
   local pref = (config.make or {}).prefer
   local force = ((config.make or {}).prefer_force == true)
-  local function is_exec(x) return x and vim.fn.executable(x) == 1 end
+  local function is_exec(x)
+    return x and vim.fn.executable(x) == 1
+  end
   local function is_path(x)
-    if not x or type(x) ~= 'string' then return false end
-    if U.is_windows() then return x:match('[\\/]') or x:match('%.exe$') end
-    return x:sub(1,1) == '/' or x:match('[\\/]')
+    if not x or type(x) ~= 'string' then
+      return false
+    end
+    if U.is_windows() then
+      return x:match '[/]' or x:match '%.exe$'
+    end
+    return x:sub(1, 1) == '/' or x:match '[/]'
   end
   local function quote_if_needed(p)
-    if not p then return p end
-    if p:find('%s') then return string.format('%q', p) end
+    if not p then
+      return p
+    end
+    if p:find '%s' then
+      return string.format('%q', p)
+    end
     return p
   end
   local function path_exists_file(p)
     local st = vim.loop.fs_stat(p)
     return st and st.type == 'file'
   end
-  if type(pref) == 'string' then
-    if is_path(pref) then
-      if path_exists_file(pref) then return quote_if_needed(pref) end
-      if force then return quote_if_needed(pref) end
-      U.notify_warn("首选 make 程序路径不存在：" .. tostring(pref))
-    elseif is_exec(pref) then
-      return pref
-    else
-      if force then return pref end
-      U.notify_warn("首选 make 程序不可执行：" .. tostring(pref) .. "（未在 PATH 中找到）")
-    end
-  elseif type(pref) == 'table' then
-    if force and #pref > 0 then
-      local name = pref[1]
-      if is_path(name) then return quote_if_needed(name) else return name end
-    else
-      for _, name in ipairs(pref) do
-        if is_path(name) then
-          if path_exists_file(name) then return quote_if_needed(name) end
-        elseif is_exec(name) then
+  local candidates = normalize_prefer(pref)
+  if type(pref) == 'string' and #candidates == 0 then
+    candidates = { pref }
+  end
+  local failures = {}
+  local function record_failure(msg)
+    failures[#failures + 1] = msg
+  end
+  for _, name in ipairs(candidates) do
+    if type(name) == 'string' then
+      if is_path(name) then
+        if path_exists_file(name) then
+          return quote_if_needed(name)
+        elseif force then
+          return quote_if_needed(name)
+        else
+          record_failure('首选 make 程序路径不存在：' .. tostring(name))
+        end
+      else
+        if is_exec(name) then
           return name
+        elseif force then
+          return name
+        else
+          record_failure('首选 make 程序不可执行：' .. tostring(name) .. '（未在 PATH 中找到）')
         end
       end
     end
   end
-  if is_exec('make') then return 'make' end
-  if U.is_windows() and is_exec('mingw32-make') then return 'mingw32-make' end
+  if force and #candidates > 0 and type(candidates[1]) == 'string' then
+    local first = candidates[1]
+    if is_path(first) then
+      return quote_if_needed(first)
+    else
+      return first
+    end
+  end
+  if next(failures) then
+    for _, msg in ipairs(failures) do
+      U.notify_warn(msg)
+    end
+  elseif pref ~= nil and type(pref) ~= 'string' and type(pref) ~= 'table' then
+    U.notify_warn '首选 make 配置无法解析，请确认结构是否为字符串、列表或按平台划分的表'
+  elseif pref ~= nil and type(pref) == 'table' and #candidates == 0 then
+    U.notify_warn '首选 make 配置无法解析，请确认结构是否为字符串、列表或按平台划分的表'
+  end
+  if is_exec 'make' then
+    return 'make'
+  end
+  if U.is_windows() and is_exec 'mingw32-make' then
+    return 'mingw32-make'
+  end
   return nil
 end
 
 function M.parse_make_targets_in_cwd_async(config, cwd, cb)
   local pref_prog = M.choose_make(config)
-  if not pref_prog then cb({}) return end
+  if not pref_prog then
+    cb {}
+    return
+  end
   local probe = pref_prog
   if not can_execute_prog(pref_prog) then
     local alt = choose_probe_make()
     if alt then
-      U.notify_warn("Quick-c: 使用可用的 make (" .. alt .. ") 解析目标；运行仍使用 '" .. tostring(pref_prog) .. "'")
+      U.notify_warn(
+        'Quick-c: 使用可用的 make (' .. alt .. ") 解析目标；运行仍使用 '" .. tostring(pref_prog) .. "'"
+      )
       probe = alt
     else
-      local msg = "Quick-c: 未找到可用于解析目标的 make（make/mingw32-make/nmake），请检查环境或使用 QuickCMakeCmd"
+      local msg =
+        'Quick-c: 未找到可用于解析目标的 make（make/mingw32-make/nmake），请检查环境或使用 QuickCMakeCmd'
       U.notify_warn(msg)
-      cb({})
+      cb {}
       return
     end
   end
-  local cache_cfg = ((config.make or {}).cache) or {}
+  local cache_cfg = (config.make or {}).cache or {}
   local ttl = tonumber(cache_cfg.ttl) or 10
   local cur_mtime = stat_makefile(cwd)
   local entry = target_cache[cwd]
   if entry and entry.targets and entry.at and (os.time() - entry.at <= ttl) and entry.mtime == cur_mtime then
-    cb({ targets = entry.targets, phony = entry.phony or {} })
+    cb { targets = entry.targets, phony = entry.phony or {} }
     return
   end
   local function parse_lines(lines)
     local targets, seen = {}, {}
     local phony = {}
     for _, l in ipairs(lines) do
-      local plist = l:match('^%.PHONY%s*:%s*(.+)')
+      local plist = l:match '^%.PHONY%s*:%s*(.+)'
       if plist then
-        for name in plist:gmatch('%S+') do phony[name] = true end
+        for name in plist:gmatch '%S+' do
+          phony[name] = true
+        end
       else
-        local name = l:match('^([%w%._%-%+/\\][^:%$#=]*)%s*:')
+        local name = l:match '^([%w%._%-%+/\\][^:%$#=]*)%s*:'
         if name then
           name = name:gsub('%s+$', '')
-          if not name:match('%%%') and not name:match('^%.')
-             and name ~= 'Makefile' and name ~= 'makefile' and name ~= 'GNUmakefile' then
-            if not seen[name] then seen[name] = true; table.insert(targets, name) end
+          if
+            not name:match '%%'
+            and not name:match '^%.'
+            and name ~= 'Makefile'
+            and name ~= 'makefile'
+            and name ~= 'GNUmakefile'
+          then
+            if not seen[name] then
+              seen[name] = true
+              table.insert(targets, name)
+            end
           end
         end
       end
@@ -144,18 +288,31 @@ function M.parse_make_targets_in_cwd_async(config, cwd, cb)
     return targets, phony
   end
   local function run_and_collect(flags, done)
-    local lines = {}
-    local job = vim.fn.jobstart({ strip_quotes(probe), flags }, {
-      cwd = cwd,
-      stdout_buffered = true,
-      on_stdout = function(_, data)
-        if data then for _, l in ipairs(data) do table.insert(lines, l) end end
-      end,
-      on_exit = function()
-        done(lines)
-      end,
-    })
-    if job <= 0 then done({}) end
+    local function launch()
+      local lines = {}
+      local job = vim.fn.jobstart({ strip_quotes(probe), flags }, {
+        cwd = cwd,
+        stdout_buffered = true,
+        on_stdout = function(_, data)
+          if data then
+            for _, l in ipairs(data) do
+              table.insert(lines, l)
+            end
+          end
+        end,
+        on_exit = function()
+          done(lines)
+        end,
+      })
+      if job <= 0 then
+        done {}
+      end
+    end
+    if vim.in_fast_event and vim.in_fast_event() then
+      vim.schedule(launch)
+    else
+      launch()
+    end
   end
   run_and_collect('-qp', function(lines_qp)
     local targets, phony = parse_lines(lines_qp)
@@ -164,11 +321,11 @@ function M.parse_make_targets_in_cwd_async(config, cwd, cb)
       run_and_collect('-pn', function(lines_pn)
         local t2, p2 = parse_lines(lines_pn)
         target_cache[cwd] = { mtime = cur_mtime, at = os.time(), targets = t2, phony = p2 }
-        cb({ targets = t2, phony = p2 })
+        cb { targets = t2, phony = p2 }
       end)
     else
       target_cache[cwd] = { mtime = cur_mtime, at = os.time(), targets = targets, phony = phony }
-      cb({ targets = targets, phony = phony })
+      cb { targets = targets, phony = phony }
     end
   end)
 end
@@ -176,7 +333,7 @@ end
 function M.make_run_in_cwd(config, cwd, target, run_fn)
   local prog = M.choose_make(config)
   if not prog then
-    U.notify_err('未找到 make 或 mingw32-make')
+    U.notify_err '未找到 make 或 mingw32-make'
     return
   end
   local cmd = string.format('%s -C %s %s', prog, U.shell_quote_path(cwd), target or '')

@@ -12,11 +12,11 @@ C.defaults = {
   --   outdir = "build"          -- a.c => ./build/a.exe
   --   outdir = "build/bin"      -- a.c => ./build/bin/a.exe
   --   outdir = "C:/tmp/bin"     -- Windows 绝对路径
-  outdir = "source",
+  outdir = 'source',
   -- 用户可覆盖：为不同系统/工具链提供命令模板
   toolchain = {
-    windows = { c = { "gcc", "cl" }, cpp = { "g++", "cl" } },
-    unix = { c = { "gcc", "clang" }, cpp = { "g++", "clang++" } },
+    windows = { c = { 'gcc', 'cl' }, cpp = { 'g++', 'cl' } },
+    unix = { c = { 'gcc', 'clang' }, cpp = { 'g++', 'clang++' } },
   },
   compile = {
     prefer = { c = nil, cpp = nil },
@@ -33,33 +33,43 @@ C.defaults = {
   },
   compile_cmds = {
     gcc = function(ft, sources, out)
-      local cc = (ft == "c") and "gcc" or "g++"
-      return { cc, "-g", "-O0", "-Wall", "-Wextra", unpack(sources), "-o", out }
+      local cc = (ft == 'c') and 'gcc' or 'g++'
+      return { cc, '-g', '-O0', '-Wall', '-Wextra', unpack(sources), '-o', out }
     end,
     clang = function(ft, sources, out)
-      local cc = (ft == "c") and "clang" or "clang++"
-      return { cc, "-g", "-O0", "-Wall", "-Wextra", unpack(sources), "-o", out }
+      local cc = (ft == 'c') and 'clang' or 'clang++'
+      return { cc, '-g', '-O0', '-Wall', '-Wextra', unpack(sources), '-o', out }
     end,
     cl = function(ft, sources, out)
-      return vim.list_extend({ "cl", "/Zi", "/Od" }, sources, 1, #sources), { [0] = out }
+      return vim.list_extend({ 'cl', '/Zi', '/Od' }, sources, 1, #sources), { [0] = out }
     end,
   },
   runtime = {
-    windows = { command = "powershell", args = function(exe) return { "-NoExit", "-Command", string.format("& '%s'", exe) } end },
-    unix = { command = nil, args = function(exe) return { exe } end },
+    windows = {
+      command = 'powershell',
+      args = function(exe)
+        return { '-NoExit', '-Command', string.format("& '%s'", exe) }
+      end,
+    },
+    unix = {
+      command = nil,
+      args = function(exe)
+        return { exe }
+      end,
+    },
   },
   diagnostics = {
     quickfix = {
-      enabled = true,      -- 是否收集编译输出到 quickfix
-      open = 'warning',    -- 'always' | 'error' | 'warning' | 'never'
-      jump = 'warning',    -- 'always' | 'error' | 'warning' | 'never'
-      use_telescope = true,-- 打开列表时优先使用 Telescope quickfix（如已安装）
+      enabled = true, -- 是否收集编译输出到 quickfix
+      open = 'warning', -- 'always' | 'error' | 'warning' | 'never'
+      jump = 'warning', -- 'always' | 'error' | 'warning' | 'never'
+      use_telescope = true, -- 打开列表时优先使用 Telescope quickfix（如已安装）
     },
   },
   autorun = {
     enabled = false,
-    events = { "BufWritePost" },
-    filetypes = { "c", "cpp" },
+    events = { 'BufWritePost' },
+    filetypes = { 'c', 'cpp' },
   },
   terminal = {
     open = true,
@@ -84,15 +94,15 @@ C.defaults = {
   make = {
     enabled = true,
     prefer = nil, -- 可为字符串或列表，例如 "make" | "mingw32-make" | { "make", "mingw32-make" }
-    cwd = nil,    -- 默认使用当前文件所在目录
+    cwd = nil, -- 默认使用当前文件所在目录
     search = { up = 2, down = 3, ignore_dirs = { '.git', 'node_modules', '.cache' } },
     telescope = {
-      prompt_title = "Quick-c Make Targets",
-      preview = true,                 -- 是否启用预览
+      prompt_title = 'Quick-c Make Targets',
+      preview = true, -- 是否启用预览
       max_preview_bytes = 200 * 1024, -- 预览最多读取的字节数
-      max_preview_lines = 2000,       -- 预览最多显示的行数
-      set_filetype = true,            -- 预览 buffer 是否设置 filetype = 'make'
-      choose_terminal = 'auto',       -- 发送命令到终端时的选择行为: 'auto' | 'always' | 'never'
+      max_preview_lines = 2000, -- 预览最多显示的行数
+      set_filetype = true, -- 预览 buffer 是否设置 filetype = 'make'
+      choose_terminal = 'auto', -- 发送命令到终端时的选择行为: 'auto' | 'always' | 'never'
     },
     cache = {
       ttl = 10, -- 目标解析缓存（秒）。同一 cwd 且 Makefile 未变化时，在 TTL 内复用上次解析结果
@@ -101,24 +111,24 @@ C.defaults = {
       prioritize_phony = true, -- 将 .PHONY 目标在列表中优先显示
     },
     args = {
-      prompt = true,    -- 选择目标后是否弹出输入框追加参数（例如 -j4 VAR=1）
-      default = "",     -- 默认参数
-      remember = true,  -- 记住每个 cwd 最近一次输入，作为下次默认值
+      prompt = true, -- 选择目标后是否弹出输入框追加参数（例如 -j4 VAR=1）
+      default = '', -- 默认参数
+      remember = true, -- 记住每个 cwd 最近一次输入，作为下次默认值
     },
   },
   cmake = {
     enabled = true,
     prefer = nil, -- 指定 cmake 可执行程序路径或名称
     generator = nil, -- 例如 "Ninja" | "Unix Makefiles" | "MinGW Makefiles" | "NMake Makefiles"
-    build_dir = "build", -- 构建目录，默认在项目根目录下
+    build_dir = 'build', -- 构建目录，默认在项目根目录下
     view = 'both', -- 构建输出视图：'quickfix' | 'terminal' | 'both'
     output = {
-      open = true,  -- both 模式下是否自动打开输出面板
-      height = 12,  -- 输出面板高度
+      open = true, -- both 模式下是否自动打开输出面板
+      height = 12, -- 输出面板高度
     },
     search = { up = 2, down = 3, ignore_dirs = { '.git', 'node_modules', '.cache' } },
     telescope = {
-      prompt_title = "Quick-c CMake Targets",
+      prompt_title = 'Quick-c CMake Targets',
       preview = true,
       max_preview_bytes = 200 * 1024,
       max_preview_lines = 2000,
@@ -126,8 +136,8 @@ C.defaults = {
       choose_terminal = 'auto',
     },
     args = {
-      prompt = true,    -- 选择目标后是否弹出输入框追加构建参数（传递给构建工具，如 -j4）
-      default = "",
+      prompt = true, -- 选择目标后是否弹出输入框追加构建参数（传递给构建工具，如 -j4）
+      default = '',
       remember = true,
     },
     configure = {
@@ -138,16 +148,17 @@ C.defaults = {
   keymaps = {
     enabled = true,
     unmap_defaults = true,
-    build = "<leader>cqb",
-    run = "<leader>cqr",
-    build_and_run = "<leader>cqR",
-    debug = "<leader>cqD",
-    make = "<leader>cqM",
-    cmake = "<leader>cqC",
-    cmake_run = "<leader>cqB",
-    cmake_configure = "<leader>cqc",
-    sources = "<leader>cqS",
-    quickfix = "<leader>cqf",
+    build = '<leader>cqb',
+    run = '<leader>cqr',
+    build_and_run = '<leader>cqR',
+    debug = '<leader>cqD',
+    make = '<leader>cqM',
+    cmake = '<leader>cqC',
+    cmake_run = '<leader>cqB',
+    cmake_configure = '<leader>cqc',
+    sources = '<leader>cqS',
+    quickfix = '<leader>cqf',
+    logs = '<leader>cqL',
   },
 }
 
