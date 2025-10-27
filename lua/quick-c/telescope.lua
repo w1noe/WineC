@@ -89,6 +89,12 @@ function M.telescope_quickfix(config)
           end
         end
         vim.api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, lines)
+        -- enable wrapping for long lines in quickfix preview window
+        if self.state and self.state.winid then
+          pcall(vim.api.nvim_win_set_option, self.state.winid, 'wrap', true)
+          pcall(vim.api.nvim_win_set_option, self.state.winid, 'linebreak', true)
+          pcall(vim.api.nvim_win_set_option, self.state.winid, 'breakindent', true)
+        end
       end,
     }
   end
