@@ -1,16 +1,18 @@
 local U = {}
 
 function U.is_windows()
-  return vim.fn.has('win32') == 1
+  return vim.fn.has 'win32' == 1
 end
 
 function U.is_powershell()
   local sh = (vim.o.shell or ''):lower()
-  return sh:find('powershell') or sh:find('pwsh')
+  return sh:find 'powershell' or sh:find 'pwsh'
 end
 
 function U.join(a, b)
-  if a:sub(-1) == '/' or a:sub(-1) == '\\' then return a .. b end
+  if a:sub(-1) == '/' or a:sub(-1) == '\\' then
+    return a .. b
+  end
   local sep = U.is_windows() and '\\' or '/'
   return a .. sep .. b
 end
@@ -22,7 +24,9 @@ function U.norm(p)
   else
     p = p:gsub('//+', '/')
   end
-  if p:sub(-1) == '/' then p = p:sub(1, -2) end
+  if p:sub(-1) == '/' then
+    p = p:sub(1, -2)
+  end
   return p
 end
 
@@ -54,31 +58,65 @@ function U.parse_diagnostics(lines)
   local has_error = false
   local has_warning = false
   local function clean_path(p)
-    if not p or p == '' then return p end
+    if not p or p == '' then
+      return p
+    end
     p = p:gsub('^%s+', ''):gsub('%s+$', '')
     p = p:gsub('^"(.+)"$', '%1'):gsub("^'(.-)'$", '%1')
     return p
   end
   for _, l in ipairs(lines or {}) do
-    if type(l) ~= 'string' or l == '' then goto continue end
-    local f, ln, col, typ, msg = l:match("^(.+):(%d+):(%d+):%s*(%w+)%s*:%s*(.+)$")
+    if type(l) ~= 'string' or l == '' then
+      goto continue
+    end
+    local f, ln, col, typ, msg = l:match '^(.+):(%d+):(%d+):%s*(%w+)%s*:%s*(.+)$'
     if f then
-      local it = { filename = clean_path(f), lnum = tonumber(ln), col = tonumber(col), text = msg, type = (typ == 'error' and 'E' or 'W') }
-      if it.type == 'E' then has_error = true else has_warning = true end
+      local it = {
+        filename = clean_path(f),
+        lnum = tonumber(ln),
+        col = tonumber(col),
+        text = msg,
+        type = (typ == 'error' and 'E' or 'W'),
+      }
+      if it.type == 'E' then
+        has_error = true
+      else
+        has_warning = true
+      end
       table.insert(items, it)
       goto continue
     end
-    local f2, ln2, typ2, msg2 = l:match("^(.+):(%d+):%s*(%w+)%s*:%s*(.+)$")
+    local f2, ln2, typ2, msg2 = l:match '^(.+):(%d+):%s*(%w+)%s*:%s*(.+)$'
     if f2 then
-      local it = { filename = clean_path(f2), lnum = tonumber(ln2), col = 1, text = msg2, type = (typ2 == 'error' and 'E' or 'W') }
-      if it.type == 'E' then has_error = true else has_warning = true end
+      local it = {
+        filename = clean_path(f2),
+        lnum = tonumber(ln2),
+        col = 1,
+        text = msg2,
+        type = (typ2 == 'error' and 'E' or 'W'),
+      }
+      if it.type == 'E' then
+        has_error = true
+      else
+        has_warning = true
+      end
       table.insert(items, it)
       goto continue
     end
-    local fm, lnm, typm, msgm = l:match("^%s*(.-)%((%d+)%)%s*:%s*(%w+)[^:]*:%s*(.+)$")
+    local fm, lnm, typm, msgm = l:match '^%s*(.-)%((%d+)%)%s*:%s*(%w+)[^:]*:%s*(.+)$'
     if fm then
-      local it = { filename = clean_path(fm), lnum = tonumber(lnm), col = 1, text = msgm, type = (typm:lower() == 'error' and 'E' or 'W') }
-      if it.type == 'E' then has_error = true else has_warning = true end
+      local it = {
+        filename = clean_path(fm),
+        lnum = tonumber(lnm),
+        col = 1,
+        text = msgm,
+        type = (typm:lower() == 'error' and 'E' or 'W'),
+      }
+      if it.type == 'E' then
+        has_error = true
+      else
+        has_warning = true
+      end
       table.insert(items, it)
       goto continue
     end
