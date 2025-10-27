@@ -7,22 +7,7 @@ function K.setup(config, callbacks)
   if km.enabled == false then
     return
   end
-  if not disabled(km.logs) and km.logs then
-    local function open_logs()
-      local ok, tel = pcall(require, 'quick-c.telescope')
-      if ok and tel and tel.telescope_build_logs then
-        tel.telescope_build_logs(config)
-        return
-      end
-      local latest = vim.fn.stdpath('data') .. '/quick-c/logs/latest-build.log'
-      if vim.fn.filereadable(latest) == 1 then
-        vim.cmd('tabnew ' .. vim.fn.fnameescape(latest))
-      else
-        vim.notify('没有可用的构建日志', vim.log.levels.WARN)
-      end
-    end
-    map(km.logs, open_logs, 'Quick-c: Build logs (Telescope)')
-  end
+  
 
   -- Option: unmap previous default keys when changed/disabled (default: true)
   local do_unmap = true
@@ -58,6 +43,7 @@ function K.setup(config, callbacks)
         { def = def.cmake_configure, cur = km.cmake_configure },
         { def = def.sources, cur = km.sources },
         { def = def.quickfix, cur = km.quickfix },
+        { def = def.logs, cur = km.logs },
       }
       for _, it in ipairs(pairs_to_check) do
         if disabled(it.cur) or (type(it.cur) == 'string' and it.cur ~= it.def) then
@@ -125,6 +111,22 @@ function K.setup(config, callbacks)
       vim.cmd 'copen'
     end
     map(km.quickfix, open_quickfix, 'Quick-c: Open quickfix list (Telescope)')
+  end
+  if not disabled(km.logs) and km.logs then
+    local function open_logs()
+      local ok, tel = pcall(require, 'quick-c.telescope')
+      if ok and tel and tel.telescope_build_logs then
+        tel.telescope_build_logs(config)
+        return
+      end
+      local latest = vim.fn.stdpath('data') .. '/quick-c/logs/latest-build.log'
+      if vim.fn.filereadable(latest) == 1 then
+        vim.cmd('tabnew ' .. vim.fn.fnameescape(latest))
+      else
+        vim.notify('没有可用的构建日志', vim.log.levels.WARN)
+      end
+    end
+    map(km.logs, open_logs, 'Quick-c: Build logs (Telescope)')
   end
 end
 
