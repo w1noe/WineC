@@ -1,5 +1,31 @@
 # Quick-c Release Notes
 
+## v1.5.4 (2025-10-27)
+
+### 新增
+- Quickfix 增强视图（Telescope）：`cqf` 打开时在右侧预览当前条目的详细信息与源码上下文（±3 行）。
+- 构建日志持久化与浏览：将构建的 stdout/stderr 合并保存到
+  - `stdpath('data')/quick-c/logs/latest-build.log`
+  - `stdpath('data')/quick-c/logs/build-YYYYMMDD-HHMMSS.log`
+  并提供 Telescope 日志浏览器，可多次打开查看完整日志。
+- 新增按键：`<leader>cqL` 打开构建日志浏览器（可在配置中自定义或禁用）。
+
+### 修复
+- 修复 Lua 模式串错误：`make.lua` 内 `%` 匹配导致的 “malformed pattern (ends with '%')”。
+- 修复 Telescope 回调在无选中项时访问 `entry` 导致的错误（`attempt to index local 'entry' (a nil value)`）。
+
+### 改进
+- Quickfix 打开逻辑更稳健：优先使用内置增强视图，不可用时回退到 `telescope.builtin.quickfix`，再次回退 `:copen`。
+- 构建失败时也可从“构建日志浏览器”反复查看完整输出，便于排错复盘。
+- 日志预览跨平台实现（buffer 读取），不依赖 shell 工具。
+
+### 兼容性
+- 无破坏性变更；默认键位新增 `<leader>cqL`。
+
+### 迁移指南
+- 如你使用了自定义键位，请在 `setup({ keymaps = { logs = '<leader>cqL' } })` 中加入或调整。
+- 若你在 README/文档中引用了旧的 quickfix 行为，请更新为“右侧带预览的增强视图（可回退）”。
+
 ## v1.5.3 (2025-10-26)
 
 ### 新增

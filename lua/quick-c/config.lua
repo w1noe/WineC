@@ -158,6 +158,7 @@ C.defaults = {
     cmake_configure = '<leader>cqc',
     sources = '<leader>cqS',
     quickfix = '<leader>cqf',
+    logs = '<leader>cqL',
   },
 }
 

@@ -3,6 +3,214 @@ local U = require 'quick-c.util'
 local T = require 'quick-c.terminal'
 local LAST_ARGS = {}
 
+-- Enhanced quickfix Telescope: show detailed error preview on the right
+function M.telescope_quickfix(config)
+  local ok_t = pcall(require, 'telescope')
+  if not ok_t then
+    vim.cmd 'copen'
+    return
+  end
+  local pickers = require 'telescope.pickers'
+  local finders = require 'telescope.finders'
+  local conf = require('telescope.config').values
+  local previewers = require 'telescope.previewers'
+  local qflist = vim.fn.getqflist({ items = 0, title = 0 })
+  local items = (qflist and qflist.items) or {}
+  if #items == 0 then
+    pickers
+      .new({}, {
+        prompt_title = 'Quickfix (empty)',
+        finder = finders.new_table {
+          results = { { display = '[空] 没有诊断条目', kind = 'empty' } },
+          entry_maker = function(e)
+            return { value = e.value, display = e.display, ordinal = e.display, kind = e.kind }
+          end,
+        },
+        sorter = conf.generic_sorter {},
+      })
+      :find()
+    return
+  end
+
+  local entries = {}
+  for _, it in ipairs(items) do
+    local bufnr = it.bufnr
+    local filename = bufnr and vim.api.nvim_buf_get_name(bufnr) or it.filename or ''
+    local lnum = it.lnum or 0
+    local col = it.col or 0
+    local text = it.text or ''
+    local disp
+    if filename ~= '' then
+      local rel = vim.fn.fnamemodify(filename, ':.')
+      disp = string.format('%s:%d:%d %s', rel, lnum, col, text)
+    else
+      disp = text ~= '' and text or '[no message]'
+    end
+    table.insert(entries, {
+      display = disp,
+      ordinal = disp,
+      value = {
+        bufnr = bufnr,
+        filename = filename,
+        lnum = lnum,
+        col = col,
+        text = text,
+      },
+    })
+  end
+
+  local function make_previewer()
+    return previewers.new_buffer_previewer {
+      define_preview = function(self, entry)
+        local v = entry and entry.value or {}
+        local filename = v.filename or ''
+        local lnum = tonumber(v.lnum or 0)
+        local text = v.text or ''
+        local lines = {}
+        table.insert(lines, '[诊断信息]')
+        if text ~= '' then
+          table.insert(lines, text)
+        end
+        if filename ~= '' then
+          table.insert(lines, '')
+          table.insert(lines, '[位置] ' .. vim.fn.fnamemodify(filename, ':.'))
+          local ok, file_lines = pcall(vim.fn.readfile, filename)
+          if ok and file_lines then
+            local ctx = 3
+            local total = #file_lines
+            local s = math.max(1, lnum - ctx)
+            local e = math.min(total, lnum + ctx)
+            for i = s, e do
+              local prefix = (i == lnum) and '>' or ' '
+              table.insert(lines, string.format('%s %5d  %s', prefix, i, file_lines[i] or ''))
+            end
+          else
+            table.insert(lines, '[无法读取源文件内容]')
+          end
+        end
+        vim.api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, lines)
+      end,
+    }
+  end
+
+  pickers
+    .new({}, {
+      prompt_title = 'Quickfix (Enhanced)',
+      finder = finders.new_table {
+        results = entries,
+        entry_maker = function(e)
+          return { value = e.value, display = e.display, ordinal = e.ordinal }
+        end,
+      },
+      sorter = conf.generic_sorter {},
+      previewer = make_previewer(),
+      attach_mappings = function(bufnr, map)
+        local actions = require 'telescope.actions'
+        local action_state = require 'telescope.actions.state'
+        local function open_loc(pbuf)
+          local sel = action_state.get_selected_entry()
+          actions.close(pbuf)
+          if not sel or not sel.value or not sel.value.filename or sel.value.filename == '' then
+            return
+          end
+          local target = sel.value.filename
+          local lnum = sel.value.lnum or 1
+          local col = (sel.value.col or 1) - 1
+          vim.cmd('edit ' .. vim.fn.fnameescape(target))
+          pcall(vim.api.nvim_win_set_cursor, 0, { lnum, math.max(0, col) })
+        end
+        map('i', '<CR>', open_loc)
+        map('n', '<CR>', open_loc)
+        return true
+      end,
+    })
+    :find()
+end
+
+-- Build logs Telescope: browse persisted logs with preview, for repeated viewing
+function M.telescope_build_logs(config)
+  local ok_t = pcall(require, 'telescope')
+  if not ok_t then
+    vim.notify('未找到 telescope.nvim', vim.log.levels.ERROR)
+    return
+  end
+  local pickers = require 'telescope.pickers'
+  local finders = require 'telescope.finders'
+  local conf = require('telescope.config').values
+  local previewers = require 'telescope.previewers'
+  local base = vim.fn.stdpath('data') .. '/quick-c/logs'
+  local uv = vim.loop
+  local files = {}
+  local function scandir(dir)
+    local ok, req = pcall(uv.fs_scandir, dir)
+    if not ok or not req then
+      return
+    end
+    while true do
+      local name, t = uv.fs_scandir_next(req)
+      if not name then
+        break
+      end
+      if t == 'file' and name:match('^build%-.+%.log$') or name == 'latest-build.log' then
+        table.insert(files, U.join(base, name))
+      end
+    end
+  end
+  scandir(base)
+  table.sort(files)
+  if #files == 0 then
+    vim.notify('没有可用的构建日志', vim.log.levels.WARN)
+    return
+  end
+  local entries = {}
+  for _, p in ipairs(files) do
+    local rel = vim.fn.fnamemodify(p, ':.')
+    table.insert(entries, { display = rel, value = p, ordinal = rel })
+  end
+  pickers
+    .new({}, {
+      prompt_title = 'Quick-c Build Logs',
+      finder = finders.new_table {
+        results = entries,
+        entry_maker = function(e)
+          return { value = e.value, display = e.display, ordinal = e.ordinal }
+        end,
+      },
+      sorter = conf.generic_sorter {},
+      previewer = previewers.new_buffer_previewer {
+        define_preview = function(self, entry)
+          local path = entry and entry.value or nil
+          if not path or path == '' then
+            vim.api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, { '[无日志]' })
+            return
+          end
+          local ok, lines = pcall(vim.fn.readfile, path, '', 2000)
+          if not ok or not lines then
+            lines = { '[无法读取日志文件]' }
+          end
+          vim.api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, lines)
+          pcall(vim.api.nvim_buf_set_option, self.state.bufnr, 'filetype', 'log')
+        end,
+      },
+      attach_mappings = function(bufnr, map)
+        local actions = require 'telescope.actions'
+        local action_state = require 'telescope.actions.state'
+        local function open_log(pbuf)
+          local sel = action_state.get_selected_entry()
+          actions.close(pbuf)
+          if not sel or not sel.value then
+            return
+          end
+          vim.cmd('tabnew ' .. vim.fn.fnameescape(sel.value))
+        end
+        map('i', '<CR>', open_log)
+        map('n', '<CR>', open_log)
+        return true
+      end,
+    })
+    :find()
+end
+
 -- Telescope picker for make: select cwd (resolved outside) -> list targets -> run
 -- External dependencies are injected to avoid circular requires.
 -- Args:

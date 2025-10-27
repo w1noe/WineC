@@ -44,6 +44,9 @@ Lightweight Neovim plugin for C/C++: build, run, and debug the current file in o
 - 🏗️ CMake integration: search CMakeLists, `cmake -S/-B` configure, `cmake --build` with target list (`--target help`)
   - View modes: `both` (stream output + quickfix), `quickfix`, `terminal`
   - Output panel: `cmake.output.{open,height}`
+- 🔭 Telescope enhancements: built-in Makefile preview, source multi-select, quick toggle .PHONY
+- 🧪 Enhanced Quickfix preview: when opening `cqf`, show detailed error and source context on the right
+- 📝 Build logs viewer: persist build output and browse with Telescope repeatedly
 
 ## 🚀 Quick Start
 
@@ -120,13 +123,14 @@ If the current buffer is unnamed and modified, auto-jump from diagnostics is ski
 - `<leader>cqc` CMake configure
 - `<leader>cqS` Telescope source picker
 - `<leader>cqf` Open quickfix (Telescope)
+- `<leader>cqL` Build logs (Telescope)
 
 ## 🧪 Diagnostics -> Quickfix / Telescope
 
 - Parses gcc/clang/MSVC output to quickfix (errors & warnings)
 - Auto open/jump policy: `always | error | warning | never`
-- Prefer Telescope quickfix when available (`use_telescope = true`)
-- If current buffer is unnamed and modified, auto-jump is skipped to avoid save prompts.
+- Prefer an enhanced Quickfix Telescope picker when available: right-side preview shows the item's message and ±3 lines of source context. Fallbacks to `telescope.builtin.quickfix`, then to `:copen`.
+- If the current buffer is unnamed and modified, auto-jump is skipped to avoid save prompts.
 
 ## ⚙️ Configuration
 

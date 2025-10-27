@@ -3,6 +3,15 @@ local T = require 'quick-c.terminal'
 local B = {}
 local NAME_CACHE = {}
 local LAST_EXE = {}
+local function write_build_logs(lines)
+  local base = vim.fn.stdpath('data') .. '/quick-c/logs'
+  vim.fn.mkdir(base, 'p')
+  local ts = os.date('%Y%m%d-%H%M%S')
+  local latest = base .. '/latest-build.log'
+  local dated = base .. '/build-' .. ts .. '.log'
+  pcall(vim.fn.writefile, lines, latest)
+  pcall(vim.fn.writefile, lines, dated)
+end
 
 local function ensure_outdir(dir)
   vim.fn.mkdir(dir, 'p')
@@ -407,6 +416,10 @@ function B.build(config, notify, opts)
         end
         for _, s in ipairs(all_stderr) do
           table.insert(lines, s)
+        end
+        -- persist full build logs for repeated viewing
+        if #lines > 0 then
+          write_build_logs(lines)
         end
         if qf_enabled and #lines > 0 then
           local items, has_error, has_warning = U.parse_diagnostics(lines)
