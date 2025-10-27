@@ -270,7 +270,7 @@ function M.parse_make_targets_in_cwd_async(config, cwd, cb)
         if name then
           name = name:gsub('%s+$', '')
           if
-            not name:match '%%%'
+            not name:match '%%'
             and not name:match '^%.'
             and name ~= 'Makefile'
             and name ~= 'makefile'
