@@ -336,7 +336,13 @@ function M.make_run_in_cwd(config, cwd, target, run_fn)
     U.notify_err '未找到 make 或 mingw32-make'
     return
   end
-  local cmd = string.format('%s -C %s %s', prog, U.shell_quote_path(cwd), target or '')
+  local no_dash_C = (config.make and config.make.no_dash_C) == true
+  local cmd
+  if no_dash_C then
+    cmd = string.format('%s %s', prog, target or '')
+  else
+    cmd = string.format('%s -C %s %s', prog, U.shell_quote_path(cwd), target or '')
+  end
   run_fn(cmd)
 end
 

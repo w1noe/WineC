@@ -46,7 +46,6 @@ Lightweight Neovim plugin for C/C++: build, run, and debug the current file in o
   - Output panel: `cmake.output.{open,height}`
 - 🔭 Telescope enhancements: built-in Makefile preview, source multi-select, quick toggle .PHONY
 - 🧪 Enhanced Quickfix preview: when opening `cqf`, show detailed error and source context on the right
-- 📝 Build logs viewer: persist build output and browse with Telescope repeatedly
 
 ## 🚀 Quick Start
 
@@ -273,6 +272,8 @@ require('quick-c').setup({
   make = {
     prefer = { 'make', 'mingw32-make' },
     cache = { ttl = 10 },
+    -- When true, omit `-C <cwd>` and run in the terminal's current directory
+    no_dash_C = false,
     telescope = { choose_terminal = 'auto' },
   },
   diagnostics = {
@@ -317,6 +318,8 @@ require('quick-c').setup({
     cache = { ttl = 10 },
     targets = { prioritize_phony = true },
     args = { prompt = true, default = '', remember = true },
+    -- When true, omit `-C <cwd>` and run in the terminal's current directory
+    no_dash_C = false,
     telescope = { choose_terminal = 'auto' },
   },
   diagnostics = {

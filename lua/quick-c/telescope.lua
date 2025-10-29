@@ -450,7 +450,13 @@ function M.telescope_make(
                     vim.notify('未找到 make 或 mingw32-make', vim.log.levels.ERROR)
                     return
                   end
-                  local cmd = string.format('%s -C %s %s %s', prog, shell_quote_path(cwd), target or '', arg)
+                  local no_dash_C = (config.make and config.make.no_dash_C) == true
+                  local cmd
+                  if no_dash_C then
+                    cmd = string.format('%s %s %s', prog, target or '', arg)
+                  else
+                    cmd = string.format('%s -C %s %s %s', prog, shell_quote_path(cwd), target or '', arg)
+                  end
                   run_make_in_terminal(cmd)
                 else
                   make_run_in_cwd(target, cwd)
@@ -486,7 +492,13 @@ function M.telescope_make(
                     vim.notify('未找到 make 或 mingw32-make', vim.log.levels.ERROR)
                     return
                   end
-                  local cmd = string.format('%s -C %s %s', prog, shell_quote_path(cwd), arg)
+                  local no_dash_C = (config.make and config.make.no_dash_C) == true
+                  local cmd
+                  if no_dash_C then
+                    cmd = string.format('%s %s', prog, arg)
+                  else
+                    cmd = string.format('%s -C %s %s', prog, shell_quote_path(cwd), arg)
+                  end
                   run_make_in_terminal(cmd)
                 end)
                 return
