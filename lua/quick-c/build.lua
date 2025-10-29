@@ -3,6 +3,35 @@ local T = require 'quick-c.terminal'
 local B = {}
 local NAME_CACHE = {}
 local LAST_EXE = {}
+local function cleanup_build_logs(base, max_keep)
+  local uv = vim.loop
+  local ok, req = pcall(uv.fs_scandir, base)
+  if not ok or not req then
+    return
+  end
+  local files = {}
+  while true do
+    local name, t = uv.fs_scandir_next(req)
+    if not name then
+      break
+    end
+    if t == 'file' then
+      if name ~= 'latest-build.log' and name:match('^build%-.+%.log$') then
+        local p = U.join(base, name)
+        local st = uv.fs_stat(p) or {}
+        local m = (st.mtime and (st.mtime.sec or st.mtime)) or 0
+        table.insert(files, { path = p, mtime = m })
+      end
+    end
+  end
+  table.sort(files, function(a, b)
+    return (a.mtime or 0) > (b.mtime or 0)
+  end)
+  for i = max_keep + 1, #files do
+    pcall(vim.fn.delete, files[i].path)
+  end
+end
+
 local function write_build_logs(lines)
   local base = vim.fn.stdpath('data') .. '/quick-c/logs'
   vim.fn.mkdir(base, 'p')
@@ -11,6 +40,7 @@ local function write_build_logs(lines)
   local dated = base .. '/build-' .. ts .. '.log'
   pcall(vim.fn.writefile, lines, latest)
   pcall(vim.fn.writefile, lines, dated)
+  cleanup_build_logs(base, 50)
 end
 
 local function ensure_outdir(dir)

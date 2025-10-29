@@ -228,6 +228,8 @@ require("quick-c").setup({
   make = {
     prefer = { "make", "mingw32-make" },
     cache = { ttl = 10 },
+    -- 当为 true 时，发送 make 命令时不附带 `-C <cwd>`，在当前终端目录执行
+    no_dash_C = false,
     telescope = { choose_terminal = "auto" },
   },
   diagnostics = {
@@ -346,6 +348,8 @@ require("quick-c").setup({
         prefer_force = false, -- 强制使用不可执行的 prefer（解析阶段仅告警，运行阶段仍使用 prefer）
 
         prefer = nil,
+        -- 发送 make 命令时是否省略 `-C <cwd>`（为 true 时在当前终端目录执行）
+        no_dash_C = false,
         -- 固定工作目录（不设置则由插件根据当前文件自动搜索）
         cwd = nil,
         -- Makefile 搜索策略（未显式设置 cwd 时生效）：
