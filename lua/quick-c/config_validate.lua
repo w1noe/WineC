@@ -75,7 +75,7 @@ local function validate_prefer_value(report, value, path, visited)
     return
   end
   if t ~= 'table' then
-    add(report, 'warn', path .. ' 应为字符串、字符串数组或按平台划分的表')
+    add(report, 'warn', path .. ' should be a string or table')
     return
   end
   if visited[value] then
@@ -85,7 +85,7 @@ local function validate_prefer_value(report, value, path, visited)
   if tbl_is_list(value) then
     for i, v in ipairs(value) do
       if type(v) ~= 'string' then
-        add(report, 'warn', string.format('%s[%d] 应为字符串', path, i))
+        add(report, 'warn', string.format('%s[%d] should be a string', path, i))
       end
     end
     return
@@ -94,12 +94,12 @@ local function validate_prefer_value(report, value, path, visited)
   for key, child in pairs(value) do
     has_child = true
     if type(key) ~= 'string' then
-      add(report, 'warn', path .. ' 的键必须为字符串（例如 windows/unix/default）')
+      add(report, 'warn', path .. ' key should be a string')
     end
     validate_prefer_value(report, child, path .. '.' .. tostring(key), visited)
   end
   if not has_child then
-    add(report, 'warn', path .. ' 表为空，无法解析首选 make 程序')
+    add(report, 'warn', path .. ' table is empty, cannot resolve preferred make program')
   end
 end
 

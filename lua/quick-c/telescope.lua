@@ -21,7 +21,7 @@ function M.telescope_quickfix(config)
       .new({}, {
         prompt_title = 'Quickfix (empty)',
         finder = finders.new_table {
-          results = { { display = '[空] 没有诊断条目', kind = 'empty' } },
+          results = { { display = '[Empty] No diagnostic entries', kind = 'empty' } },
           entry_maker = function(e)
             return { value = e.value, display = e.display, ordinal = e.display, kind = e.kind }
           end,
@@ -67,13 +67,13 @@ function M.telescope_quickfix(config)
         local lnum = tonumber(v.lnum or 0)
         local text = v.text or ''
         local lines = {}
-        table.insert(lines, '[诊断信息]')
+        table.insert(lines, '[Diagnostic Info]')
         if text ~= '' then
           table.insert(lines, text)
         end
         if filename ~= '' then
           table.insert(lines, '')
-          table.insert(lines, '[位置] ' .. vim.fn.fnamemodify(filename, ':.'))
+          table.insert(lines, '[Location] ' .. vim.fn.fnamemodify(filename, ':.'))
           local ok, file_lines = pcall(vim.fn.readfile, filename)
           if ok and file_lines then
             local ctx = 3
@@ -85,7 +85,7 @@ function M.telescope_quickfix(config)
               table.insert(lines, string.format('%s %5d  %s', prefix, i, file_lines[i] or ''))
             end
           else
-            table.insert(lines, '[无法读取源文件内容]')
+            table.insert(lines, '[Unable to read source file]')
           end
         end
         vim.api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, lines)
@@ -137,7 +137,7 @@ end
 function M.telescope_build_logs(config)
   local ok_t = pcall(require, 'telescope')
   if not ok_t then
-    vim.notify('未找到 telescope.nvim', vim.log.levels.ERROR)
+    vim.notify('telescope.nvim not found', vim.log.levels.ERROR)
     return
   end
   local pickers = require 'telescope.pickers'
@@ -179,7 +179,7 @@ function M.telescope_build_logs(config)
     return (a.mtime or 0) > (b.mtime or 0)
   end)
   if #stats == 0 then
-    vim.notify('没有可用的构建日志', vim.log.levels.WARN)
+    vim.notify('No build logs available', vim.log.levels.WARN)
     return
   end
   local entries = {}
@@ -201,12 +201,12 @@ function M.telescope_build_logs(config)
         define_preview = function(self, entry)
           local path = entry and entry.value or nil
           if not path or path == '' then
-            vim.api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, { '[无日志]' })
+            vim.api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, { '[No log]' })
             return
           end
           local ok, lines = pcall(vim.fn.readfile, path, '', 2000)
           if not ok or not lines then
-            lines = { '[无法读取日志文件]' }
+            lines = { '[Unable to read log file]' }
           end
           vim.api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, lines)
           pcall(vim.api.nvim_buf_set_option, self.state.bufnr, 'filetype', 'log')
@@ -257,12 +257,12 @@ function M.telescope_make(
   run_make_in_terminal
 )
   if not (config.make and config.make.enabled ~= false) then
-    vim.notify('Make 功能未启用', vim.log.levels.WARN)
+    vim.notify('Make feature not enabled', vim.log.levels.WARN)
     return
   end
   local ok_t = pcall(require, 'telescope')
   if not ok_t then
-    vim.notify('未找到 telescope.nvim', vim.log.levels.ERROR)
+    vim.notify('telescope.nvim not found', vim.log.levels.ERROR)
     return
   end
 
@@ -290,7 +290,7 @@ function M.telescope_make(
           .new({}, {
             prompt_title = 'Make Targets (' .. cwd .. ')',
             finder = finders.new_table {
-              results = { { display = '[未解析到任何 Make 目标]', kind = 'empty' } },
+              results = { { display = '[No Make targets found]', kind = 'empty' } },
               entry_maker = function(e)
                 return { value = e.value, display = e.display, ordinal = e.display, kind = e.kind }
               end,
@@ -299,11 +299,11 @@ function M.telescope_make(
             previewer = previewers.new_buffer_previewer {
               define_preview = function(self)
                 local lines = {
-                  '[空状态]',
-                  '未找到可用的 Make 目标。你可以：',
-                  '1) 确认目录存在 Makefile',
-                  '2) 在项目根执行 make -qp 检查输出',
-                  '3) 调整 quick-c 的 make.search 或 make.cwd 配置',
+                  '[Empty State]',
+                  'No Make targets found. You can:',
+                  '1) Verify Makefile exists in directory',
+                  '2) Run make -qp in project root to check output',
+                  '3) Adjust quick-c make.search or make.cwd config',
                 }
                 vim.api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, lines)
               end,
@@ -319,7 +319,7 @@ function M.telescope_make(
 
       local function build_entries()
         local entries = {}
-        table.insert(entries, { display = '[自定义参数…]', kind = 'args' })
+        table.insert(entries, { display = '[Custom args...]', kind = 'args' })
         local list = {}
         if mktargets.prioritize_phony ~= false then
           local a, b = {}, {}
@@ -534,14 +534,14 @@ function M.telescope_make(
                 make_run_in_cwd(target, cwd)
                 return
               end
-              ui.input({ prompt = 'make 参数: ', default = def }, function(arg)
+              ui.input({ prompt = 'make args: ', default = def }, function(arg)
                 if arg and arg ~= '' then
                   if mkargs.remember ~= false then
                     LAST_ARGS[cwd] = arg
                   end
                   local prog = choose_make()
                   if not prog then
-                    vim.notify('未找到 make 或 mingw32-make', vim.log.levels.ERROR)
+                    vim.notify('make or mingw32-make not found', vim.log.levels.ERROR)
                     return
                   end
                   local no_dash_C = (config.make and config.make.no_dash_C) == true
@@ -574,7 +574,7 @@ function M.telescope_make(
                 if not ui.input then
                   return
                 end
-                ui.input({ prompt = 'make 参数: ', default = def }, function(arg)
+                ui.input({ prompt = 'make args: ', default = def }, function(arg)
                   if not arg or arg == '' then
                     return
                   end
@@ -583,7 +583,7 @@ function M.telescope_make(
                   end
                   local prog = choose_make()
                   if not prog then
-                    vim.notify('未找到 make 或 mingw32-make', vim.log.levels.ERROR)
+                    vim.notify('make or mingw32-make not found', vim.log.levels.ERROR)
                     return
                   end
                   local no_dash_C = (config.make and config.make.no_dash_C) == true
@@ -633,7 +633,7 @@ end
 function M.telescope_cmake(config)
   local ok_t = pcall(require, 'telescope')
   if not ok_t then
-    vim.notify('未找到 telescope.nvim', vim.log.levels.ERROR)
+    vim.notify('telescope.nvim not found', vim.log.levels.ERROR)
     return
   end
   local CM = require 'quick-c.cmake'
@@ -648,7 +648,7 @@ function M.telescope_cmake(config)
         local finders = require 'telescope.finders'
         local conf = require('telescope.config').values
         local previewers = require 'telescope.previewers'
-        local entries = { { display = '[配置]', kind = 'configure' } }
+        local entries = { { display = '[Configure]', kind = 'configure' } }
         pickers
           .new({}, {
             prompt_title = 'CMake Targets (' .. root .. ')',
@@ -662,10 +662,10 @@ function M.telescope_cmake(config)
             previewer = previewers.new_buffer_previewer {
               define_preview = function(self)
                 local lines = {
-                  '[空状态]',
-                  '未解析到任何 CMake 目标：',
-                  '- 生成器可能不支持 --target help',
-                  '- 或尚未配置（请先选择 [配置]）',
+                  '[Empty State]',
+                  'No CMake targets found:',
+                  '- Generator may not support --target help',
+                  '- Or not configured yet (select [Configure] first)',
                 }
                 vim.api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, lines)
               end,
@@ -679,9 +679,9 @@ function M.telescope_cmake(config)
                 if entry.kind == 'configure' then
                   CM.ensure_configured_async(config, root, function(ok)
                     if ok then
-                      U.notify_info 'CMake 配置完成'
+                      U.notify_info 'CMake configuration complete'
                     else
-                      U.notify_err 'CMake 配置失败'
+                      U.notify_err 'CMake configuration failed'
                     end
                   end)
                 end
@@ -695,7 +695,7 @@ function M.telescope_cmake(config)
         return
       end
       local entries = {}
-      table.insert(entries, { display = '[配置]', kind = 'configure' })
+      table.insert(entries, { display = '[configure]', kind = 'configure' })
       for _, t in ipairs(targets) do
         table.insert(entries, { display = t, value = t, kind = 'target' })
       end
@@ -874,9 +874,9 @@ function M.telescope_cmake(config)
                 local notify = { err = U.notify_err, warn = U.notify_warn, info = U.notify_info }
                 CM.ensure_configured_async(config, root, function(ok)
                   if ok then
-                    notify.info 'CMake 配置完成'
+                    notify.info 'CMake configured'
                   else
-                    notify.err 'CMake 配置失败'
+                    notify.err 'CMake configure failed'
                   end
                 end)
                 return
@@ -902,7 +902,7 @@ end
 function M.telescope_quickc_sources(config)
   local ok_t = pcall(require, 'telescope')
   if not ok_t then
-    vim.notify('未找到 telescope.nvim', vim.log.levels.ERROR)
+    vim.notify('telescope.nvim not found', vim.log.levels.ERROR)
     return
   end
   local pickers = require 'telescope.pickers'
@@ -927,7 +927,7 @@ function M.telescope_quickc_sources(config)
   end
   local files = list_sources()
   if #files == 0 then
-    vim.notify('未在当前工作目录找到 C/C++ 源文件', vim.log.levels.WARN)
+    vim.notify('No C/C++ source files found in current working directory', vim.log.levels.WARN)
     return
   end
   local function to_entries(abs_list)

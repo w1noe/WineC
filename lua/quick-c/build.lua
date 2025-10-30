@@ -1,5 +1,6 @@
 local U = require 'quick-c.util'
 local T = require 'quick-c.terminal'
+local TASK = require 'quick-c.task'
 local B = {}
 local NAME_CACHE = {}
 local LAST_EXE = {}
@@ -388,147 +389,143 @@ function B.get_output_name_async(config, sources, preset_name, cb, default_overr
 end
 
 function B.build(config, notify, opts)
+  opts = opts or {}
+  local timeout_ms = (config.build and config.build.timeout_ms) or 0
   local cli_sources = from_opts_sources(opts)
   local sources = cli_sources or gather_sources()
   if not sources or #sources == 0 then
-    notify.warn '未找到源码文件'
+    notify.warn 'No source files found'
     return
   end
   local ft = vim.bo.filetype
   if ft ~= 'c' and ft ~= 'cpp' then
     ft = detect_ft_from_sources(sources)
   end
-  opts = opts or {}
   local key = sources_key(sources)
   local cached = NAME_CACHE[key]
-  -- 对多文件：即使有缓存也弹出输入框，但默认值使用缓存
   local preset = nil
   local default_override = cached
-  B.get_output_name_async(config, sources, preset, function(name)
-    if not cached and name and name ~= '' then
-      NAME_CACHE[key] = name
-    end
-    local is_win = U.is_windows()
-    local exe = resolve_out_path(config, sources, name)
-    local cmd = build_cmd(config, is_win, ft, sources, exe)
-    if not cmd then
-      notify.err '未找到可用编译器，请检查 PATH 或在 setup 中自定义 compile 命令'
-      if opts.on_exit then
-        pcall(opts.on_exit, 1, nil)
-      end
-      return
-    end
-    local all_stdout, all_stderr = {}, {}
-    local ok = vim.fn.jobstart(cmd, {
-      stdout_buffered = true,
-      stderr_buffered = true,
-      detach = false,
-      on_stdout = function(_, d)
-        if d and #d > 0 then
-          for _, line in ipairs(d) do
-            table.insert(all_stdout, line)
-          end
+
+  local job_id = -1
+  local started_at = (vim.loop and vim.loop.now and vim.loop.now()) or 0
+  TASK.enqueue {
+    name = 'build',
+    target = table.concat(sources, ' '),
+    timeout_ms = timeout_ms,
+    cancel = function()
+      if job_id and job_id > 0 then pcall(vim.fn.jobstop, job_id) end
+    end,
+    start = function(done)
+      B.get_output_name_async(config, sources, preset, function(name)
+        if not cached and name and name ~= '' then
+          NAME_CACHE[key] = name
         end
-      end,
-      on_stderr = function(_, d)
-        if d and #d > 0 then
-          for _, line in ipairs(d) do
-            table.insert(all_stderr, line)
-          end
+        local is_win = U.is_windows()
+        local exe = resolve_out_path(config, sources, name)
+        local cmd = build_cmd(config, is_win, ft, sources, exe)
+        if not cmd then
+          notify.err 'No available compiler found. Check PATH or set compile.prefer in setup()'
+          if opts.on_exit then pcall(opts.on_exit, 1, nil) end
+          done(1)
+          return
         end
-      end,
-      on_exit = function(_, code)
-        local diagcfg = (config.diagnostics and config.diagnostics.quickfix) or {}
-        local qf_enabled = (diagcfg.enabled ~= false)
-        local lines = {}
-        for _, s in ipairs(all_stdout) do
-          table.insert(lines, s)
-        end
-        for _, s in ipairs(all_stderr) do
-          table.insert(lines, s)
-        end
-        -- persist full build logs for repeated viewing
-        if #lines > 0 then
-          write_build_logs(lines)
-        end
-        if qf_enabled and #lines > 0 then
-          local items, has_error, has_warning = U.parse_diagnostics(lines)
-          if #items > 0 then
-            vim.fn.setqflist({}, ' ', { title = 'Quick-c Build', items = items })
-            local function should_open()
-              if diagcfg.open == 'always' then
-                return true
-              end
-              if diagcfg.open == 'error' and has_error then
-                return true
-              end
-              if diagcfg.open == 'warning' and (has_error or has_warning) then
-                return true
-              end
-              return false
+        local cmdline = table.concat(cmd, ' ')
+        local all_stdout, all_stderr = {}, {}
+        job_id = vim.fn.jobstart(cmd, {
+          stdout_buffered = true,
+          stderr_buffered = true,
+          detach = false,
+          on_stdout = function(_, d)
+            if d and #d > 0 then
+              for _, line in ipairs(d) do table.insert(all_stdout, line) end
             end
-            local function should_jump()
-              if diagcfg.jump == 'always' then
-                return true
-              end
-              if diagcfg.jump == 'error' and has_error then
-                return true
-              end
-              if diagcfg.jump == 'warning' and (has_error or has_warning) then
-                return true
-              end
-              return false
+          end,
+          on_stderr = function(_, d)
+            if d and #d > 0 then
+              for _, line in ipairs(d) do table.insert(all_stderr, line) end
             end
-            if should_open() then
-              if diagcfg.use_telescope then
-                local ok_tb, tb = pcall(require, 'telescope.builtin')
-                if ok_tb then
-                  tb.quickfix()
-                else
-                  vim.cmd 'copen'
+          end,
+          on_exit = function(_, code)
+            local diagcfg = (config.diagnostics and config.diagnostics.quickfix) or {}
+            local qf_enabled = (diagcfg.enabled ~= false)
+            local lines = {}
+            for _, s in ipairs(all_stdout) do table.insert(lines, s) end
+            for _, s in ipairs(all_stderr) do table.insert(lines, s) end
+            if #lines > 0 then write_build_logs(lines) end
+            -- Compute diagnostics summary for notification
+            local items = {}
+            do
+              local parsed = { U.parse_diagnostics(lines) }
+              items = parsed[1] or {}
+            end
+            local err_cnt, warn_cnt = 0, 0
+            for _, it in ipairs(items) do
+              if it.type == 'E' then err_cnt = err_cnt + 1 else warn_cnt = warn_cnt + 1 end
+            end
+            if qf_enabled and #lines > 0 then
+              local items, has_error, has_warning = U.parse_diagnostics(lines)
+              if #items > 0 then
+                vim.fn.setqflist({}, ' ', { title = 'Quick-c Build', items = items })
+                local function should_open()
+                  if diagcfg.open == 'always' then return true end
+                  if diagcfg.open == 'error' and has_error then return true end
+                  if diagcfg.open == 'warning' and (has_error or has_warning) then return true end
+                  return false
+                end
+                local function should_jump()
+                  if diagcfg.jump == 'always' then return true end
+                  if diagcfg.jump == 'error' and has_error then return true end
+                  if diagcfg.jump == 'warning' and (has_error or has_warning) then return true end
+                  return false
+                end
+                if should_open() then
+                  if diagcfg.use_telescope then
+                    local ok_tb, tb = pcall(require, 'telescope.builtin')
+                    if ok_tb then tb.quickfix() else vim.cmd 'copen' end
+                  else
+                    vim.cmd 'copen'
+                  end
+                end
+                if should_jump() then
+                  local cur = vim.api.nvim_get_current_buf()
+                  local nameb = vim.api.nvim_buf_get_name(cur)
+                  local modified = false
+                  pcall(function() modified = vim.api.nvim_buf_get_option(cur, 'modified') end)
+                  if not (nameb == '' and modified) then
+                    pcall(vim.cmd, 'silent! keepalt keepjumps cc')
+                  end
                 end
               else
-                vim.cmd 'copen'
+                if code == 0 then vim.fn.setqflist {} end
               end
             end
-            if should_jump() then
-              local cur = vim.api.nvim_get_current_buf()
-              local name = vim.api.nvim_buf_get_name(cur)
-              local modified = false
-              pcall(function()
-                modified = vim.api.nvim_buf_get_option(cur, 'modified')
-              end)
-              -- 避免在“未命名且已修改”的缓冲上自动跳转，防止保存提示
-              if not (name == '' and modified) then
-                pcall(vim.cmd, 'silent! keepalt keepjumps cc')
-              end
-            end
-          else
-            -- clear quickfix on successful build without diagnostics
+            local dur = (((vim.loop and vim.loop.now and vim.loop.now()) or started_at) - started_at)
+            local secs = (dur or 0) / 1000
+            local msg = {}
             if code == 0 then
-              vim.fn.setqflist {}
+              table.insert(msg, string.format('Build OK -> %s', exe))
+            else
+              table.insert(msg, string.format('Build failed (%d)', code))
             end
-          end
+            table.insert(msg, string.format('Time: %.2fs | Errors: %d, Warnings: %d', secs, err_cnt, warn_cnt))
+            table.insert(msg, 'Cmd: ' .. cmdline)
+            local full = table.concat(msg, '\n')
+            if code == 0 then notify.info(full) else notify.err(full) end
+            if code == 0 then
+              local root = vim.fn.getcwd()
+              LAST_EXE[U.norm(root)] = exe
+            end
+            if opts.on_exit then pcall(opts.on_exit, code, exe) end
+            done(code)
+          end,
+        })
+        if (job_id or 0) <= 0 then
+          notify.err 'Failed to start build process'
+          done(1)
         end
-        if code == 0 then
-          notify.info('Build OK -> ' .. exe)
-        else
-          notify.err('Build failed (' .. code .. ')')
-        end
-        if code == 0 then
-          -- remember last built exe per project root
-          local root = vim.fn.getcwd()
-          LAST_EXE[U.norm(root)] = exe
-        end
-        if opts.on_exit then
-          pcall(opts.on_exit, code, exe)
-        end
-      end,
-    })
-    if ok <= 0 then
-      notify.err '启动编译进程失败'
-    end
-  end, default_override)
+      end, default_override)
+    end,
+  }
 end
 
 function B.run(config, notify, exe_or_opts)
@@ -544,7 +541,7 @@ function B.run(config, notify, exe_or_opts)
   local is_win = U.is_windows()
   exe = exe or resolve_out_path(config, cur, default_out_name(is_win, cur))
   if vim.fn.filereadable(exe) ~= 1 then
-    notify.warn '未找到可执行文件，请先构建'
+    notify.warn 'Executable not found. Please build first'
     return
   end
   local cmd
@@ -559,7 +556,7 @@ function B.run(config, notify, exe_or_opts)
   end
   if not T.run_in_betterterm(config, U.is_windows, cmd, notify.warn, notify.err) then
     if not T.run_in_native_terminal(config, U.is_windows, cmd) then
-      notify.err '无法运行命令：无法打开终端'
+      notify.err 'Unable to run command: cannot open terminal'
     end
   end
 end
@@ -596,7 +593,7 @@ function B.debug_run(config, notify, exe)
     local cur_dir = vim.fn.fnamemodify(cur[1], ':p:h')
     discover_candidates_async(config, is_win, cur_dir, function(cand)
       if not cand or #cand == 0 then
-        notify.warn '未找到可执行文件，请先构建'
+        notify.warn 'Executable not found. Please build first'
         return
       end
       local function start_debug(sel)
@@ -607,7 +604,7 @@ function B.debug_run(config, notify, exe)
         -- fall through to dap.run below
         local ok, dap = pcall(require, 'dap')
         if not ok then
-          notify.err '未找到 nvim-dap'
+          notify.err 'not found nvim-dap'
           return
         end
         dap.run {
@@ -633,7 +630,7 @@ function B.debug_run(config, notify, exe)
         end
         pickers
           .new({}, {
-            prompt_title = '选择要调试的可执行文件',
+            prompt_title = 'Select executable to debug',
             finder = finders.new_table {
               results = entries,
               entry_maker = function(e)
@@ -663,7 +660,7 @@ function B.debug_run(config, notify, exe)
         for _, p in ipairs(cand) do
           table.insert(items, vim.fn.fnamemodify(p, ':.'))
         end
-        ui.select(items, { prompt = '选择要调试的可执行文件' }, function(choice)
+        ui.select(items, { prompt = 'Select executable to debug' }, function(choice)
           if not choice then
             return
           end
@@ -683,7 +680,7 @@ function B.debug_run(config, notify, exe)
   end
   local ok, dap = pcall(require, 'dap')
   if not ok then
-    notify.err '未找到 nvim-dap'
+    notify.err 'nvim-dap not found'
     return
   end
   dap.run {

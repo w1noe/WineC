@@ -44,6 +44,8 @@ function K.setup(config, callbacks)
         { def = def.sources, cur = km.sources },
         { def = def.quickfix, cur = km.quickfix },
         { def = def.logs, cur = km.logs },
+        { def = def.stop, cur = km.stop },
+        { def = def.retry, cur = km.retry },
       }
       for _, it in ipairs(pairs_to_check) do
         if disabled(it.cur) or (type(it.cur) == 'string' and it.cur ~= it.def) then
@@ -123,10 +125,17 @@ function K.setup(config, callbacks)
       if vim.fn.filereadable(latest) == 1 then
         vim.cmd('tabnew ' .. vim.fn.fnameescape(latest))
       else
-        vim.notify('没有可用的构建日志', vim.log.levels.WARN)
+        vim.notify('no build logs', vim.log.levels.WARN)
       end
     end
     map(km.logs, open_logs, 'Quick-c: Build logs (Telescope)')
+  end
+  -- Task control keymaps
+  if not disabled(km.stop) and callbacks.stop then
+    map(km.stop, callbacks.stop, 'Quick-c: Stop current task')
+  end
+  if not disabled(km.retry) and callbacks.retry then
+    map(km.retry, callbacks.retry, 'Quick-c: Retry last task')
   end
 end
 

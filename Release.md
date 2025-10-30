@@ -1,5 +1,30 @@
 # Quick-c Release Notes
 
+## v1.5.8 (2025-10-30)
+
+### 新增
+- 任务队列（仅用于内部“单文件构建”路径）：
+  - 全局互斥与排队，避免重复并发触发。
+  - 支持取消与快速重试：新增命令 `QuickCStop`、`QuickCRetry`。
+  - 支持构建超时（毫秒）：`build.timeout_ms`，默认 0 表示不超时。
+- 状态接口：`require('quick-c').status()` 暴露 `phase/task/target/last` 等信息，便于 statusline/winbar 展示“编译中/成功/失败 + 目标/耗时”。
+
+### 变更
+- 移除“构建完成悬浮摘要”浮窗，改为使用 `notify` 提示，包含：结果、耗时、错误/警告计数、完整命令行。避免遮挡终端与已有面板。
+- 保持 quickfix 集成与自动打开/跳转策略不变（由 `diagnostics.quickfix` 控制）。
+
+### 修复
+- `QuickCCMakeRun` 在非 CMake 目录或快速事件上下文下报错 `E5560`：
+  - 目录创建与 `jobstart` 调用改为 `vim.schedule(...)` 执行，避免 fast event 上下文限制。
+  - 当未检测到 `CMakeLists.txt` 时给出友好提示并返回，不再进入 configure/build。
+
+### 文档
+- README（中/英）新增示例：`build = { timeout_ms = 120000 }`。
+
+### 兼容性
+- 非破坏性变更：新增命令与配置项，默认行为不改变。
+- Make/CMake 仍以“发送到终端”为主，取消方式保持 Ctrl+C，不纳入任务队列。
+
 ## v1.5.7 (2025-10-30)
 
 ### 新增

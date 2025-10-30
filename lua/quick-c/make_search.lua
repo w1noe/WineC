@@ -562,7 +562,7 @@ end
       end)
       return
     else
-      U.notify_warn('指定的 make.cwd 目录不存在：' .. tostring(cwd) .. '，已回退到起点目录')
+      U.notify_warn('make.cwd directory not found: ' .. tostring(cwd) .. '，已回退到起点目录')
       cb(start_dir)
     end
     return

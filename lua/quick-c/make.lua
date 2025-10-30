@@ -212,7 +212,7 @@ function M.choose_make(config)
         elseif force then
           return quote_if_needed(name)
         else
-          record_failure('首选 make 程序路径不存在：' .. tostring(name))
+          record_failure('Preferred make program path not found: ' .. tostring(name))
         end
       else
         if is_exec(name) then
@@ -220,7 +220,7 @@ function M.choose_make(config)
         elseif force then
           return name
         else
-          record_failure('首选 make 程序不可执行：' .. tostring(name) .. '（未在 PATH 中找到）')
+          record_failure('Preferred make program not executable: ' .. tostring(name) .. ' (not in PATH)')
         end
       end
     end
@@ -238,9 +238,9 @@ function M.choose_make(config)
       U.notify_warn(msg)
     end
   elseif pref ~= nil and type(pref) ~= 'string' and type(pref) ~= 'table' then
-    U.notify_warn '首选 make 配置无法解析，请确认结构是否为字符串、列表或按平台划分的表'
+    U.notify_warn 'Preferred make config cannot be parsed. Check structure (string/list/platform table)'
   elseif pref ~= nil and type(pref) == 'table' and #candidates == 0 then
-    U.notify_warn '首选 make 配置无法解析，请确认结构是否为字符串、列表或按平台划分的表'
+    U.notify_warn 'Preferred make config cannot be parsed. Check structure (string/list/platform table)'
   end
   if is_exec 'make' then
     return 'make'
@@ -263,12 +263,12 @@ function M.parse_make_targets_in_cwd_async(config, cwd, cb)
     local alt = choose_probe_make()
     if alt then
       U.notify_warn(
-        'Quick-c: 使用可用的 make (' .. alt .. ") 解析目标；运行仍使用 '" .. tostring(pref_prog) .. "'"
+        'Quick-c: Using available make (' .. alt .. ") for parsing; running still uses '" .. tostring(pref_prog) .. "'"
       )
       probe = alt
     else
       local msg =
-        'Quick-c: 未找到可用于解析目标的 make（make/mingw32-make/nmake），请检查环境或使用 QuickCMakeCmd'
+        'Quick-c: No make found for parsing (make/mingw32-make/nmake). Check environment or use QuickCMakeCmd'
       U.notify_warn(msg)
       cb {}
       return
@@ -359,7 +359,7 @@ end
 function M.make_run_in_cwd(config, cwd, target, run_fn)
   local prog = M.choose_make(config)
   if not prog then
-    U.notify_err '未找到 make 或 mingw32-make'
+    U.notify_err 'make or mingw32-make not found'
     return
   end
   local no_dash_C = (config.make and config.make.no_dash_C) == true

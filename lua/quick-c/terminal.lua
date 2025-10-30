@@ -33,9 +33,9 @@ function T.run_in_betterterm(config, is_windows, cmd, notify_warn, notify_err)
   vim.defer_fn(function()
     local ok_send, err = pcall(betterTerm.send, cmd .. (is_windows() and '\r' or '\n'), idx)
     if not ok_send then
-      notify_warn('发送到 betterTerm 失败，改用内置终端: ' .. tostring(err))
+      notify_warn('Failed to send to betterTerm, using native terminal: ' .. tostring(err))
       if not T.run_in_native_terminal(config, is_windows, cmd) then
-        notify_err '内置终端打开失败'
+        notify_err 'Failed to open native terminal'
       end
       return
     end
@@ -46,7 +46,7 @@ end
 function T.run_make_in_terminal(config, is_windows, cmdline, notify_warn, notify_err)
   if not T.run_in_betterterm(config, is_windows, cmdline, notify_warn, notify_err) then
     if not T.run_in_native_terminal(config, is_windows, cmdline) then
-      notify_err '无法运行 make：无法打开终端'
+      notify_err 'Unable to run make: cannot open terminal'
     end
   end
 end
@@ -113,7 +113,7 @@ function T.select_or_run_in_terminal(config, is_windows, cmdline, notify_warn, n
   end
   pickers
     .new({}, {
-      prompt_title = '选择终端以发送命令',
+      prompt_title = 'quick-c: select terminal to send',
       finder = finders.new_table {
         results = entries,
         entry_maker = function(e)
@@ -133,7 +133,7 @@ function T.select_or_run_in_terminal(config, is_windows, cmdline, notify_warn, n
           else
             local ok = T.send_to_builtin_terminal(is_windows, v.job, cmdline, { bufnr = v.bufnr, config = config })
             if not ok then
-              notify_warn '发送到选定终端失败，改用默认策略'
+              notify_warn 'Failed to send to selected terminal, using default strategy'
               T.run_make_in_terminal(config, is_windows, cmdline, notify_warn, notify_err)
             end
           end

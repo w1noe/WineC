@@ -81,19 +81,19 @@ end
 function CC.generate(config, notify)
   local ft = vim.bo.filetype
   if ft ~= 'c' and ft ~= 'cpp' then
-    notify.warn '仅支持 c/cpp 文件'
+    notify.warn 'Only c/cpp files supported'
     return
   end
   local source = gather_current_source()
   if source == nil or source == '' then
-    notify.warn '未找到源码文件'
+    notify.warn 'No source file found'
     return
   end
   local source_dir = vim.fn.fnamemodify(source, ':p:h')
   local exe = resolve_out_path(config, source)
   local cmdline = build_compile_command(config, ft, source, exe)
   if not cmdline then
-    notify.err '未找到可用编译器'
+    notify.err 'No available compiler found'
     return
   end
   local entry = {
@@ -104,9 +104,9 @@ function CC.generate(config, notify)
   local path = resolve_target_path(config.compile_commands, source_dir)
   local ok = vim.fn.writefile({ vim.json.encode { entry } }, path) == 0
   if ok then
-    notify.info('已生成 ' .. path)
+    notify.info('Generated: ' .. path)
   else
-    notify.err('生成失败: ' .. path)
+    notify.err('Generation failed: ' .. path)
   end
 end
 
@@ -114,20 +114,20 @@ function CC.use_external(config, notify)
   local ccfg = config.compile_commands or {}
   local src = ccfg.use_path
   if not src or src == '' then
-    notify.warn '未设置 compile_commands 路径'
+    notify.warn 'compile_commands path not set'
     return
   end
   if vim.fn.filereadable(src) ~= 1 then
-    notify.err('文件不存在: ' .. src)
+    notify.err('File not found: ' .. src)
     return
   end
   local source = gather_current_source()
   local source_dir = vim.fn.fnamemodify(source, ':p:h')
   local dst = resolve_target_path(ccfg, source_dir)
   if copy_file(src, dst) then
-    notify.info('已复制到 ' .. dst)
+    notify.info('Copied to: ' .. dst)
   else
-    notify.err('复制失败: ' .. dst)
+    notify.err('Copy failed: ' .. dst)
   end
 end
 
