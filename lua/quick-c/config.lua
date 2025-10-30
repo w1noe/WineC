@@ -96,6 +96,8 @@ C.defaults = {
     prefer = nil, -- 可为字符串或列表，例如 "make" | "mingw32-make" | { "make", "mingw32-make" }
     cwd = nil, -- 默认使用当前文件所在目录
     search = { up = 2, down = 3, ignore_dirs = { '.git', 'node_modules', '.cache' } },
+    -- 并发工作者数：用于 Makefile 搜索等异步操作；可根据系统性能微调
+    concurrency = 8,
     telescope = {
       prompt_title = 'Quick-c Make Targets',
       preview = true, -- 是否启用预览
@@ -122,6 +124,8 @@ C.defaults = {
     generator = nil, -- 例如 "Ninja" | "Unix Makefiles" | "MinGW Makefiles" | "NMake Makefiles"
     build_dir = 'build', -- 构建目录，默认在项目根目录下
     view = 'both', -- 构建输出视图：'quickfix' | 'terminal' | 'both'
+    -- 并发工作者数：用于 CMake 根目录搜索等异步操作；可根据系统性能微调
+    concurrency = 8,
     output = {
       open = true, -- both 模式下是否自动打开输出面板
       height = 12, -- 输出面板高度

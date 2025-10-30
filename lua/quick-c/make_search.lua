@@ -158,7 +158,10 @@
   local scanning = false
   local found = false
   local batch_size = 40 -- 每个调度 tick 处理的目录数（控制占用）
-  local parallel = 8    -- 同批并行扫描的目录数（控制并发）
+  -- 并发工作者数：优先 make.concurrency，其次 debug.concurrency，最后默认 8
+  local parallel = tonumber((config.make and config.make.concurrency)
+    or (config.debug and config.debug.concurrency)
+    or 8) or 8
 
   local function step()
     if scanning then
@@ -326,12 +329,17 @@ end
       table.insert(queue, { dir = b, depth = 0 })
     end
     local batch_size = 50 -- 更大的批量以提升收集效率
+    -- 并发工作者数：优先 make.concurrency，其次 debug.concurrency，最后默认 8
+    local parallel = tonumber((config.make and config.make.concurrency)
+      or (config.debug and config.debug.concurrency)
+      or 8) or 8
     local function step()
       local taken = {}
-      local n = math.min(batch_size, #queue, 8)
+      local n = math.min(batch_size, #queue, parallel)
       for i = 1, n do
         taken[i] = table.remove(queue, 1)
       end
+
       if #taken == 0 then
         table.sort(results)
         _done(results)
