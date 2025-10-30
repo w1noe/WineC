@@ -147,6 +147,8 @@ C.defaults = {
     sources = '<leader>cqS',
     quickfix = '<leader>cqf',
     logs = '<leader>cqL',
+    stop = '<leader>cqx',
+    retry = '<leader>cqt',
   },
 }
 

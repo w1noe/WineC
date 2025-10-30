@@ -421,6 +421,20 @@ function M.setup(opts)
     cmake_configure = function()
       cmake_configure()
     end,
+    stop = function()
+      if TASK.cancel_current() then
+        notify_info 'Requested to cancel current task'
+      else
+        notify_warn 'No task currently running'
+      end
+    end,
+    retry = function()
+      if TASK.retry_last() then
+        notify_info 'Retry task added to queue'
+      else
+        notify_warn 'No task to retry'
+      end
+    end,
   })
 end
 
