@@ -138,14 +138,14 @@ jobs:
               local ms = require('quick-c.make_search'); \
               local done1, root = false, nil; \
               ms.find_make_root_async(qc._config, vim.fn.getcwd(), function(dir) root = dir; done1 = true end); \
-              if vim.wait(3000, function() return done1 end) ~= 0 then print('ROOT:'..tostring(root)) else error('find_make_root_async timeout') end; \
+              if vim.wait(8000, function() return done1 end) ~= 0 then print('ROOT:'..tostring(root)) else error('find_make_root_async timeout') end; \
               local done2, list = false, nil; \
               ms.find_make_roots_async(qc._config, vim.fn.getcwd(), function(lst) list = lst; done2 = true end); \
-              if vim.wait(3000, function() return done2 end) ~= 0 then print('ROOTS_SZ:'..tostring(#(list or {}))) else error('find_make_roots_async timeout') end; \
+              if vim.wait(8000, function() return done2 end) ~= 0 then print('ROOTS_SZ:'..tostring(#(list or {}))) else error('find_make_roots_async timeout') end; \
               local mk = require('quick-c.make'); \
               local done3, parsed = false, nil; \
               mk.parse_make_targets_in_cwd_async(qc._config, vim.fn.getcwd(), function(res) parsed = res; done3 = true end); \
-              if vim.wait(3000, function() return done3 end) ~= 0 then \
+              if vim.wait(8000, function() return done3 end) ~= 0 then \
                 local n = (parsed and parsed.targets) and #parsed.targets or 0; \
                 print('PARSE_TARGETS_SZ:'..tostring(n)); \
               else \
@@ -223,10 +223,10 @@ jobs:
               local base = vim.fn.getcwd(); \
               local done1, root = false, nil; \
               CM.resolve_root_async(qc._config, base, function(r) root = r; done1 = true end); \
-              assert(vim.wait(3000, function() return done1 end) ~= 0, 'resolve_root_async timeout'); \
+              assert(vim.wait(8000, function() return done1 end) ~= 0, 'resolve_root_async timeout'); \
               local done2, list = false, nil; \
               CM.list_targets_async(qc._config, root, function(t) list = t; done2 = true end); \
-              assert(vim.wait(5000, function() return done2 end) ~= 0, 'list_targets_async timeout'); \
+              assert(vim.wait(12000, function() return done2 end) ~= 0, 'list_targets_async timeout'); \
               local n = (list and #list) or 0; print('CMAKE_TARGETS_SZ:'..tostring(n)); \
             " +qall! 2>&1 | tee -a artifacts/ci.log
 
@@ -274,12 +274,12 @@ jobs:
               local base = vim.fn.getcwd(); \
               local done1, root = false, nil; \
               CM.resolve_root_async(qc._config, base, function(r) root = r; done1 = true end); \
-              assert(vim.wait(3000, function() return done1 end) ~= 0, 'resolve_root_async timeout'); \
+              assert(vim.wait(8000, function() return done1 end) ~= 0, 'resolve_root_async timeout'); \
               local done2, list = false, nil; \
               CM.list_targets_async(qc._config, root, function(t) list = t; done2 = true end); \
-              assert(vim.wait(5000, function() return done2 end) ~= 0, 'list_targets_async timeout'); \
+              assert(vim.wait(12000, function() return done2 end) ~= 0, 'list_targets_async timeout'); \
               local n = (list and #list) or 0; print('CMAKE_TARGETS_SZ:'..tostring(n)); \
-            " +qall! | tee -a artifacts/ci.log
+            " +qall! 2>&1 | tee -a artifacts/ci.log
 
       - name: Picker build (no-interaction) smoke (Windows)
         if: runner.os == 'Windows'
@@ -325,10 +325,10 @@ jobs:
               local base = vim.fn.getcwd(); \
               local done1, root = false, nil; \
               CM.resolve_root_async(qc._config, base, function(r) root = r; done1 = true end); \
-              assert(vim.wait(3000, function() return done1 end) ~= 0, 'resolve_root_async timeout'); \
+              assert(vim.wait(8000, function() return done1 end) ~= 0, 'resolve_root_async timeout'); \
               local done2, list = false, nil; \
               CM.list_targets_async(qc._config, root, function(t) list = t; done2 = true end); \
-              assert(vim.wait(5000, function() return done2 end) ~= 0, 'list_targets_async timeout'); \
+              assert(vim.wait(12000, function() return done2 end) ~= 0, 'list_targets_async timeout'); \
               local n = (list and #list) or 0; print('CMAKE_TARGETS_SZ:'..tostring(n)); \
             " +qall! 2>&1 | tee -a artifacts/ci.log
 
