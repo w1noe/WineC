@@ -744,9 +744,9 @@ function M.telescope_cmake(config)
                   -- 1) add_executable/add_library/add_custom_target(<t>
                   -- 2) target_* (<t> ...)
                   local esc = vim.fn.escape(target, '\\^$.*[]')
-                  local p1 = '^\\s*\%(add_executable\|add_library\|add_custom_target\)\\s*(' .. '\\s*' .. esc .. '\\>.*'
-                  local p2 = '^\\s*target_[a-zA-Z_][a-zA-Z0-9_]*\\s*(' .. '\\s*' .. esc .. '\\>.*'
-                  return '\\v\%(' .. p1 .. '\\|' .. p2 .. '\\)'
+                  local p1 = [[^\s*\%(add_executable\|add_library\|add_custom_target\)\s*(]] .. [[\s*]] .. esc .. [[\>.*]]
+                  local p2 = [[^\s*target_[a-zA-Z_][a-zA-Z0-9_]*\s*(]] .. [[\s*]] .. esc .. [[\>.*]]
+                  return [[\v\%(]] .. p1 .. [[\|]] .. p2 .. [[\)]]
                 end
                 if st.size and st.size > max_bytes then
                   local ok, lines = pcall(vim.fn.readfile, abspath, '', max_lines)
