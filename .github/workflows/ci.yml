@@ -347,21 +347,30 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         run: |
+          set -x
           set +e
-          nvim --headless -u NONE -n -Es \
+          nvim -V3 -v --headless -u NONE -n -Es \
             +"lua \
-              vim.opt.runtimepath:append(vim.fn.getcwd()); \
-              local tel = require('quick-c.telescope'); \
-              local cfg = { make = { telescope = { preview = false } }, cmake = { telescope = { preview = false } } }; \
-              local function noop() end \
-              local function cwd_resolve(base, cb) cb(vim.fn.getcwd()) end \
-              local function parse_targets(cwd, cb) cb({ targets = {}, phony = {} }) end \
-              local function choose_make() return 'make' end \
-              local function shell_quote_path(p) return p end \
-              local function run_make_in_terminal(cmd) end \
-              pcall(function() tel.telescope_make(cfg, cwd_resolve, parse_targets, noop, choose_make, shell_quote_path, run_make_in_terminal) end); \
-              pcall(function() tel.telescope_cmake(cfg) end); \
-            " +qall! 2>&1 | tee -a artifacts/ci.log
+              local function main() \
+                vim.opt.runtimepath:append(vim.fn.getcwd()); \
+                local ok_telmod, tel = pcall(require, 'quick-c.telescope'); \
+                if not ok_telmod then \
+                  print('TEL_MODULE_NOT_AVAILABLE:'..tostring(tel)); \
+                  return \
+                end \
+                local cfg = { make = { telescope = { preview = false } }, cmake = { telescope = { preview = false } } }; \
+                local function noop() end \
+                local function cwd_resolve(base, cb) cb(vim.fn.getcwd()) end \
+                local function parse_targets(cwd, cb) cb({ targets = {}, phony = {} }) end \
+                local function choose_make() return 'make' end \
+                local function shell_quote_path(p) return p end \
+                local function run_make_in_terminal(cmd) end \
+                pcall(function() tel.telescope_make(cfg, cwd_resolve, parse_targets, noop, choose_make, shell_quote_path, run_make_in_terminal) end); \
+                pcall(function() tel.telescope_cmake(cfg) end); \
+              end \
+              local ok, err = xpcall(main, debug.traceback); \
+              if not ok then print('LUA_ERR:'..tostring(err)) end \
+            " +messages +qall! 2>&1 | tee -a artifacts/ci.log
           echo "PICKER_WIN:$?" >> artifacts/status.txt
 
       - name: CMake list targets (read-only, no telescope) (Windows)
