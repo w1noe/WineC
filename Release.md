@@ -14,6 +14,10 @@
 - 体验一致性：Make/CMake 两条路径均采用 libuv 事件监听，行为统一、非阻塞。
  - 预览可读性：Make/CMake 预览窗口启用软换行 `wrap/linebreak/breakindent`，长行展示更友好；定位跳转采用“延迟 + 二次正则搜索”更稳健。
 
+### 修复
+- 修复 CMake 目标预览加载错误：正则转义在 Lua 字符串中导致 `invalid escape sequence`，改用 Lua 长字符串构造 Vim 正则。
+- 修复在无 Makefile 的目录下使用 `cqM` 报错：`E5560: Vimscript function must not be called in a fast event context`，统一通过 `vim.schedule` 延迟回到主线程执行涉及 `vim.fn` 的逻辑。
+
 ### 兼容性
 - 无破坏性变更。默认启用监听；在不支持文件事件的环境下会自动静默回退，不影响现有功能。
 
