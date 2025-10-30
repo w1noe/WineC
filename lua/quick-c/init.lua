@@ -7,6 +7,8 @@ local MK = require 'quick-c.make'
 local CFG = require 'quick-c.config'
 local PROJECT_CONFIG = require 'quick-c.project_config'
 local CM = require 'quick-c.cmake'
+local STATUS = require 'quick-c.status'
+local TASK = require 'quick-c.task'
 
 M.config = CFG.defaults
 M.user_opts = {}
@@ -324,6 +326,22 @@ function M.setup(opts)
     vim.notify('Quick-c: Config reloaded', vim.log.levels.INFO)
   end, {})
 
+  -- Task control commands
+  vim.api.nvim_create_user_command('QuickCStop', function()
+    if TASK.cancel_current() then
+      notify_info '已请求取消当前任务'
+    else
+      notify_warn '当前没有正在运行的任务'
+    end
+  end, {})
+  vim.api.nvim_create_user_command('QuickCRetry', function()
+    if TASK.retry_last() then
+      notify_info '已加入重试任务到队列'
+    else
+      notify_warn '没有可重试的任务'
+    end
+  end, {})
+
   -- Debug: show effective config and detected project config path
   vim.api.nvim_create_user_command('QuickCConfig', function()
     local cfg = M.config
@@ -404,6 +422,10 @@ function M.setup(opts)
       cmake_configure()
     end,
   })
+end
+
+function M.status()
+  return STATUS.get()
 end
 
 return M

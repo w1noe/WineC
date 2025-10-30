@@ -39,17 +39,12 @@
  - 📁 **灵活输出位置**：默认将可执行文件输出到源码所在目录；可通过配置修改
  - 🔌 **终端兼容**：优先将命令发送到 `betterTerm`（如已安装），否则使用 Neovim 内置终端
  - 🔧 **Make 集成**：自动发现 Makefile、列出目标、`.PHONY` 优先、参数输入与记忆
-  - 🧭 目标解析更稳健：`-qp` 无结果时回退 `-pn`；Windows 兼容路径样式目标
-  - 🧪 不可执行 `prefer` 时，解析阶段自动用可用 make（`make`/`mingw32-make`/`nmake`）探测；运行仍按你的 `prefer`
 - 🏗️ **CMake 集成**：自动搜索 CMakeLists、`cmake -S/-B` 配置、`cmake --build` 构建、目标列表（基于 `--target help`）
   - 视图模式：`both`（默认，流式输出+quickfix）/`quickfix`/`terminal`
   - 输出面板：`cmake.output.{open,height}` 控制
 - 🔭 **Telescope 增强**：内置 Makefile 预览、源文件多选、快捷切换 .PHONY
 - 🧪 **Quickfix 增强预览**：`cqf` 打开时右侧显示错误详情与源码上下文
-- 🖥️ **BetterTerm/内置终端**：自动选择/复用终端、跨平台兼容
 - 📦 **多文件构建**：支持一次构建/运行多个源文件
-- 📝 **自定义命令**：`QuickCMakeCmd` 自定义完整命令（预填 `<prefer> -C <cwd>`，可编辑后发送到终端）
-- ✅ **配置检查**：`QuickCCheck` 检查配置（类型/路径/可执行性）并输出报告
 - 🧠 **LSP 集成**：一键为当前文件目录生成或使用指定 `compile_commands.json` 供 clangd 等 LSP 使用
 
 
@@ -222,6 +217,8 @@ require("quick-c").setup({
     windows = { c = { "gcc", "cl" }, cpp = { "g++", "cl" } },
     unix    = { c = { "gcc", "clang" }, cpp = { "g++", "clang++" } },
   },
+  -- 构建超时（毫秒）：例如 2 分钟
+  build = { timeout_ms = 120000 },
   compile = { -- 只有当你想使用自定义的工具时才会有效，且仅当 prefer_force = true 时有效
     prefer = { c = nil, cpp = nil }, -- 就像 c = i686-gcc-elf
     prefer_force = false,

@@ -39,8 +39,6 @@ Feature-rich yet lightweight Neovim plugin for C/C++: one-key build, run, and de
  - 🌐 Cross-platform: auto select compiler (gcc/clang/cl) and runtime (PowerShell/terminal)
  - 📁 Flexible output dir: default to source folder; configurable
  - 🔧 Make integration: auto discover Makefiles, list targets, .PHONY prioritization, argument input with remember
-  - 🧭 Robust parsing: fallback to `-pn` if `-qp` yields nothing; support Windows-style paths in targets
-  - 🧪 If `prefer` is not executable, use an available make (make/mingw32-make/nmake) only for parsing; running still uses your `prefer`
 - 🏗️ CMake integration: search CMakeLists, `cmake -S/-B` configure, `cmake --build` with target list (`--target help`)
   - View modes: `both` (stream output + quickfix), `quickfix`, `terminal`
   - Output panel: `cmake.output.{open,height}`
@@ -267,6 +265,8 @@ require('quick-c').setup({
     windows = { c = { 'gcc', 'cl' }, cpp = { 'g++', 'cl' } },
     unix    = { c = { 'gcc', 'clang' }, cpp = { 'g++', 'clang++' } },
   },
+  -- Build timeout in milliseconds (e.g., 2 minutes)
+  build = { timeout_ms = 120000 },
   compile = {  -- It only works when you want to use custom tools. And make.prefer_force = true
     prefer = { c = nil, cpp = nil }, -- such c = i686-gcc-elf
     prefer_force = false,
@@ -315,6 +315,8 @@ require('quick-c').setup({
     windows = { c = { 'gcc', 'cl' }, cpp = { 'g++', 'cl' } },
     unix    = { c = { 'gcc', 'clang' }, cpp = { 'g++', 'clang++' } },
   },
+  -- Build timeout in milliseconds (e.g., 2 minutes)
+  build = { timeout_ms = 120000 },
   make = {
     prefer = { 'make', 'mingw32-make' },
     cache = { ttl = 10 },
