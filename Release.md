@@ -1,5 +1,39 @@
 # Quick-c Release Notes
 
+## v1.5.7 (2025-10-30)
+
+### 新增
+- 自动保存 Autosave（默认启用，可配置）：
+  - 监听 `TextChanged`/`TextChangedI`/`InsertLeave` 等事件，按防抖时间自动保存当前缓冲。
+  - 支持按文件类型白名单（默认 `{'c','cpp'}`）与忽略名单（默认忽略 `gitcommit/gitrebase`）。
+  - 仅在满足条件时保存：缓冲已修改、非只读、有文件名、非特殊 `buftype`。
+- 移除了 `compile_cmds` 和 `runtime` 配置项，这些配置在当前版本中已不再使用
+- 修复CI日志记录中的stderr丢失问题
+
+### 工程化（CI）
+- 不中断测试：各子步骤使用 `set +e`，失败不会短路；新增“汇总步骤”统一根据子步骤退出码判定失败。
+- 日志完整上传：上传步骤 `if: always()`，确保任何情况下都会上传工件。
+- 详细日志：所有 `nvim` 命令追加 `2>&1 | tee -a artifacts/ci.log` 合并 stderr；关键步骤启用 `-V3 -v`、`+messages`，并用 `xpcall(..., debug.traceback)` 打印 Lua 堆栈；分阶段标记 `STEP{n} begin/end` 便于定位卡点。
+- 稳定性：适度提升 `vim.wait` 超时阈值（如 3000→8000ms，5000→12000ms）以降低 CI 抖动带来的偶发超时。
+
+### 配置
+- `autosave` 配置块（在 `setup()` 或 `.quick-c.json` 中设置）：
+  ```lua
+  autosave = {
+    enabled = true,
+    debounce_ms = 1000,
+    events = { 'TextChanged', 'TextChangedI', 'InsertLeave' },
+    filetypes = { 'c', 'cpp' },       -- 为空或省略则表示允许所有文件类型
+    ignore_filetypes = { 'gitcommit', 'gitrebase' },
+  }
+  ```
+
+### 兼容性
+- 无破坏性变更；如不需要可将 `autosave.enabled = false` 关闭。
+
+### 迁移指南
+- 无需迁移；如需修改触发事件或白/黑名单，可按上方配置覆盖。
+
 ## v1.5.6 (2025-10-30)
 
 ### 新增

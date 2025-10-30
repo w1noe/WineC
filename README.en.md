@@ -30,7 +30,7 @@
 >
 > I would be very grateful if you could translate or correct errors in this document.
 
-Lightweight Neovim plugin for C/C++: build, run, and debug the current file in one key. Works on Windows/Linux/macOS. Integrates with BetterTerm and the built-in terminal. Fully async.
+Feature-rich yet lightweight Neovim plugin for C/C++: one-key build, run, and debug for the current file. Works on Windows, Linux, and macOS; integrates with BetterTerm and the built-in terminal. Fully asynchronous and non-blocking to Neovim's main thread.
 
 ## ✨ Features
 

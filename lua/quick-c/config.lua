@@ -31,33 +31,6 @@ C.defaults = {
     -- 当 mode = 'use' 时，从此路径复制 compile_commands.json
     use_path = nil,
   },
-  compile_cmds = {
-    gcc = function(ft, sources, out)
-      local cc = (ft == 'c') and 'gcc' or 'g++'
-      return { cc, '-g', '-O0', '-Wall', '-Wextra', unpack(sources), '-o', out }
-    end,
-    clang = function(ft, sources, out)
-      local cc = (ft == 'c') and 'clang' or 'clang++'
-      return { cc, '-g', '-O0', '-Wall', '-Wextra', unpack(sources), '-o', out }
-    end,
-    cl = function(ft, sources, out)
-      return vim.list_extend({ 'cl', '/Zi', '/Od' }, sources, 1, #sources), { [0] = out }
-    end,
-  },
-  runtime = {
-    windows = {
-      command = 'powershell',
-      args = function(exe)
-        return { '-NoExit', '-Command', string.format("& '%s'", exe) }
-      end,
-    },
-    unix = {
-      command = nil,
-      args = function(exe)
-        return { exe }
-      end,
-    },
-  },
   diagnostics = {
     quickfix = {
       enabled = true, -- 是否收集编译输出到 quickfix
@@ -66,10 +39,12 @@ C.defaults = {
       use_telescope = true, -- 打开列表时优先使用 Telescope quickfix（如已安装）
     },
   },
-  autorun = {
-    enabled = false,
-    events = { 'BufWritePost' },
+  autosave = {
+    enabled = true,
+    debounce_ms = 1000,
+    events = { 'TextChanged', 'TextChangedI', 'InsertLeave' },
     filetypes = { 'c', 'cpp' },
+    ignore_filetypes = { 'gitcommit', 'gitrebase' },
   },
   terminal = {
     open = true,
@@ -96,6 +71,8 @@ C.defaults = {
     prefer = nil, -- 可为字符串或列表，例如 "make" | "mingw32-make" | { "make", "mingw32-make" }
     cwd = nil, -- 默认使用当前文件所在目录
     search = { up = 2, down = 3, ignore_dirs = { '.git', 'node_modules', '.cache' } },
+    -- 并发工作者数：用于 Makefile 搜索等异步操作；可根据系统性能微调
+    concurrency = 8,
     telescope = {
       prompt_title = 'Quick-c Make Targets',
       preview = true, -- 是否启用预览
@@ -122,6 +99,8 @@ C.defaults = {
     generator = nil, -- 例如 "Ninja" | "Unix Makefiles" | "MinGW Makefiles" | "NMake Makefiles"
     build_dir = 'build', -- 构建目录，默认在项目根目录下
     view = 'both', -- 构建输出视图：'quickfix' | 'terminal' | 'both'
+    -- 并发工作者数：用于 CMake 根目录搜索等异步操作；可根据系统性能微调
+    concurrency = 8,
     output = {
       open = true, -- both 模式下是否自动打开输出面板
       height = 12, -- 输出面板高度

@@ -25,7 +25,7 @@
   <b>中文</b> | <a href="README.en.md">English</a>
 </p>
 
-一个面向 C/C++ 的轻量 Neovim 插件：一键编译、运行与调试当前文件，支持 Windows、Linux、macOS，兼容 betterTerm 与内置终端。构建与运行全程异步，不会阻塞 Neovim 主线程。
+一个面向 C/C++ 的功能齐全且轻量的 Neovim 插件：支持一键编译、运行与调试当前文件，兼容 Windows、Linux、macOS，适配 betterTerm 与内置终端；构建与运行全程异步，不阻塞 Neovim 主线程。
 
 <a href="https://dotfyle.com/plugins/AuroBreeze/quick-c">
   <img src="https://dotfyle.com/plugins/AuroBreeze/quick-c/shield" />

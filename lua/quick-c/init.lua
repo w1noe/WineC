@@ -1,5 +1,6 @@
 local M = {}
 local T = require 'quick-c.terminal'
+local AS = require 'quick-c.autosave'
 local U = require 'quick-c.util'
 local MS = require 'quick-c.make_search'
 local MK = require 'quick-c.make'
@@ -12,6 +13,7 @@ M.user_opts = {}
 M._last_project_config_path = nil
 M._reload_timer = nil
 M._suppress_notice_until = 0 -- uv.now() deadline in ms
+M._autosave_timer = nil
 
 local function is_windows()
   return U.is_windows()
@@ -360,6 +362,11 @@ function M.setup(opts)
       schedule_recompute(400)
     end,
   })
+
+  -- Autosave
+  pcall(function()
+    AS.setup(M.config)
+  end)
 
   -- Auto-reload when saving project config in current root
   pcall(vim.api.nvim_create_autocmd, 'BufWritePost', {

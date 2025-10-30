@@ -132,58 +132,82 @@ function M.find_root_async(config, start_dir, cb)
 
   local scanning = false
   local found = false
+  local batch_size = 40
+  -- 并发工作者数：优先 cmake.concurrency，其次 debug.concurrency，最后默认 8
+  local parallel = tonumber((config.cmake and config.cmake.concurrency)
+    or (config.debug and config.debug.concurrency)
+    or 8) or 8
   local function step()
     if scanning or found then
       return
     end
     scanning = true
-    local item = table.remove(queue, 1)
-    if not item then
+    local taken = {}
+    local n = math.min(batch_size, #queue, parallel)
+    for i = 1, n do
+      taken[i] = table.remove(queue, 1)
+    end
+    if #taken == 0 then
       scanning = false
       _cache.root[key] = { v = start_dir, t = _now() }
       cb(start_dir)
       return
     end
-    local dir, depth = item.dir, item.depth
-    if find_cmakelists(dir) then
-      scanning = false
-      found = true
-      _cache.root[key] = { v = dir, t = _now() }
-      cb(dir)
-      return
+    local pending = #taken
+    local function on_one_done()
+      pending = pending - 1
+      if pending == 0 then
+        scanning = false
+        if not found then
+          if #queue == 0 then
+            _cache.root[key] = { v = start_dir, t = _now() }
+            cb(start_dir)
+          else
+            vim.defer_fn(step, 1)
+          end
+        end
+      end
     end
-    if depth < down then
-      scandir_async(dir, function(entries)
-        for _, e in ipairs(entries) do
-          if e.type == 'directory' then
-            if not is_ignored(e.name) then
-              local subdir = U.join(dir, e.name)
-              local key = U.norm(subdir)
-              if not seen[key] then
-                seen[key] = true
-                table.insert(queue, { dir = subdir, depth = depth + 1 })
-              end
-            else
-              local subdir = U.join(dir, e.name)
-              if find_cmakelists(subdir) then
-                scanning = false
-                found = true
-                _cache.root[key] = { v = subdir, t = _now() }
-                cb(subdir)
-                return
+    for _, item in ipairs(taken) do
+      local dir, depth = item.dir, item.depth
+      if find_cmakelists(dir) then
+        found = true
+        scanning = false
+        _cache.root[key] = { v = dir, t = _now() }
+        cb(dir)
+        return
+      end
+      if depth < down then
+        scandir_async(dir, function(entries)
+          if found then
+            on_one_done()
+            return
+          end
+          for _, e in ipairs(entries) do
+            if e.type == 'directory' then
+              if not is_ignored(e.name) then
+                local subdir = U.join(dir, e.name)
+                local k2 = U.norm(subdir)
+                if not seen[k2] then
+                  seen[k2] = true
+                  table.insert(queue, { dir = subdir, depth = depth + 1 })
+                end
+              else
+                local subdir = U.join(dir, e.name)
+                if find_cmakelists(subdir) then
+                  found = true
+                  scanning = false
+                  _cache.root[key] = { v = subdir, t = _now() }
+                  cb(subdir)
+                  return
+                end
               end
             end
           end
-        end
-        scanning = false
-        if not found then
-          vim.defer_fn(step, 1)
-        end
-      end)
-    else
-      scanning = false
-      if not found then
-        vim.defer_fn(step, 1)
+          on_one_done()
+        end)
+      else
+        on_one_done()
       end
     end
   end
