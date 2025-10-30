@@ -382,7 +382,7 @@ function M.telescope_make(
               return nil
             end
             return previewers.new_buffer_previewer {
-              define_preview = function(self)
+              define_preview = function(self, entry)
                 local path = find_makefile(cwd)
                 if not path or path == '' then
                   vim.api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, { '[No Makefile found]' })
@@ -394,6 +394,11 @@ function M.telescope_make(
                 local max_bytes = telcfg.max_preview_bytes or (200 * 1024)
                 local max_lines = telcfg.max_preview_lines or 2000
                 local set_ft = (telcfg.set_filetype ~= false)
+                local target_line_idx = nil
+                local function escape_lua_magic(s)
+                  local matches = { ['^']='%^', ['$']='%$', ['(']='%(', [')']='%)', ['%']='%%', ['.']='%.', ['[']='%[', [']']='%]', ['*']='%*', ['+']='%+', ['-']='%-', ['?']='%?' }
+                  return (s:gsub('.', matches))
+                end
                 if st.size and st.size > max_bytes then
                   local ok, lines = pcall(vim.fn.readfile, abspath, '', max_lines)
                   if not ok or not lines then
@@ -410,6 +415,16 @@ function M.telescope_make(
                     )
                   )
                   vim.api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, lines)
+                  -- try to locate target within loaded lines
+                  if entry and entry.kind == 'target' and type(entry.value) == 'string' then
+                    local pat = '^%s*' .. escape_lua_magic(entry.value) .. '%s*:'
+                    for i = 1, #lines do
+                      if type(lines[i]) == 'string' and lines[i]:match(pat) then
+                        target_line_idx = i
+                        break
+                      end
+                    end
+                  end
                 else
                   local ok =
                     pcall(conf_t.buffer_previewer_maker, abspath, self.state.bufnr, { bufname = self.state.bufname })
@@ -419,10 +434,35 @@ function M.telescope_make(
                       lines = { '[Failed to read Makefile]' }
                     end
                     vim.api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, lines)
+                    if entry and entry.kind == 'target' and type(entry.value) == 'string' then
+                      local pat = '^%s*' .. escape_lua_magic(entry.value) .. '%s*:'
+                      for i = 1, #lines do
+                        if type(lines[i]) == 'string' and lines[i]:match(pat) then
+                          target_line_idx = i
+                          break
+                        end
+                      end
+                    end
                   end
                 end
                 if set_ft then
                   pcall(vim.api.nvim_buf_set_option, self.state.bufnr, 'filetype', 'make')
+                end
+                -- place cursor at target definition if found
+                if self.state and self.state.winid and target_line_idx then
+                  pcall(vim.api.nvim_win_set_cursor, self.state.winid, { target_line_idx, 0 })
+                else
+                  -- If buffer is the actual file (loaded via buffer_previewer_maker), search in buffer
+                  if entry and entry.kind == 'target' and type(entry.value) == 'string' and self.state and self.state.winid then
+                    local buflines = vim.api.nvim_buf_get_lines(self.state.bufnr, 0, -1, false)
+                    local pat = '^%s*' .. escape_lua_magic(entry.value) .. '%s*:'
+                    for i = 1, #buflines do
+                      if type(buflines[i]) == 'string' and buflines[i]:match(pat) then
+                        pcall(vim.api.nvim_win_set_cursor, self.state.winid, { i, 0 })
+                        break
+                      end
+                    end
+                  end
                 end
               end,
             }
