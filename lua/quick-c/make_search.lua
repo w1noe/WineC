@@ -287,10 +287,10 @@ end
         for _, n in ipairs(ignore) do
           if name == n then
             return true
+          end
         end
+        return false
       end
-      return false
-    end
 
     local cwd_root = U.norm(vim.fn.getcwd()) -- 同样受 :pwd 边界限制
     local bases = {}
