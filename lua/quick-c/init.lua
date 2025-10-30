@@ -329,16 +329,16 @@ function M.setup(opts)
   -- Task control commands
   vim.api.nvim_create_user_command('QuickCStop', function()
     if TASK.cancel_current() then
-      notify_info '已请求取消当前任务'
+      notify_info 'Requested to cancel current task'
     else
-      notify_warn '当前没有正在运行的任务'
+      notify_warn 'No task currently running'
     end
   end, {})
   vim.api.nvim_create_user_command('QuickCRetry', function()
     if TASK.retry_last() then
-      notify_info '已加入重试任务到队列'
+      notify_info 'Retry task added to queue'
     else
-      notify_warn '没有可重试的任务'
+      notify_warn 'No task to retry'
     end
   end, {})
 

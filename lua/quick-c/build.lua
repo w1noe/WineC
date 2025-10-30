@@ -394,7 +394,7 @@ function B.build(config, notify, opts)
   local cli_sources = from_opts_sources(opts)
   local sources = cli_sources or gather_sources()
   if not sources or #sources == 0 then
-    notify.warn '未找到源码文件'
+    notify.warn 'No source files found'
     return
   end
   local ft = vim.bo.filetype
@@ -424,7 +424,7 @@ function B.build(config, notify, opts)
         local exe = resolve_out_path(config, sources, name)
         local cmd = build_cmd(config, is_win, ft, sources, exe)
         if not cmd then
-          notify.err '未找到可用编译器，请检查 PATH 或在 setup 中自定义 compile 命令'
+          notify.err 'No available compiler found. Check PATH or set compile.prefer in setup()'
           if opts.on_exit then pcall(opts.on_exit, 1, nil) end
           done(1)
           return
@@ -520,7 +520,7 @@ function B.build(config, notify, opts)
           end,
         })
         if (job_id or 0) <= 0 then
-          notify.err '启动编译进程失败'
+          notify.err 'Failed to start build process'
           done(1)
         end
       end, default_override)
@@ -541,7 +541,7 @@ function B.run(config, notify, exe_or_opts)
   local is_win = U.is_windows()
   exe = exe or resolve_out_path(config, cur, default_out_name(is_win, cur))
   if vim.fn.filereadable(exe) ~= 1 then
-    notify.warn '未找到可执行文件，请先构建'
+    notify.warn 'Executable not found. Please build first'
     return
   end
   local cmd
@@ -556,7 +556,7 @@ function B.run(config, notify, exe_or_opts)
   end
   if not T.run_in_betterterm(config, U.is_windows, cmd, notify.warn, notify.err) then
     if not T.run_in_native_terminal(config, U.is_windows, cmd) then
-      notify.err '无法运行命令：无法打开终端'
+      notify.err 'Unable to run command: cannot open terminal'
     end
   end
 end
@@ -593,7 +593,7 @@ function B.debug_run(config, notify, exe)
     local cur_dir = vim.fn.fnamemodify(cur[1], ':p:h')
     discover_candidates_async(config, is_win, cur_dir, function(cand)
       if not cand or #cand == 0 then
-        notify.warn '未找到可执行文件，请先构建'
+        notify.warn 'Executable not found. Please build first'
         return
       end
       local function start_debug(sel)
@@ -630,7 +630,7 @@ function B.debug_run(config, notify, exe)
         end
         pickers
           .new({}, {
-            prompt_title = '选择要调试的可执行文件',
+            prompt_title = 'Select executable to debug',
             finder = finders.new_table {
               results = entries,
               entry_maker = function(e)
@@ -660,7 +660,7 @@ function B.debug_run(config, notify, exe)
         for _, p in ipairs(cand) do
           table.insert(items, vim.fn.fnamemodify(p, ':.'))
         end
-        ui.select(items, { prompt = '选择要调试的可执行文件' }, function(choice)
+        ui.select(items, { prompt = 'Select executable to debug' }, function(choice)
           if not choice then
             return
           end
@@ -680,7 +680,7 @@ function B.debug_run(config, notify, exe)
   end
   local ok, dap = pcall(require, 'dap')
   if not ok then
-    notify.err '未找到 nvim-dap'
+    notify.err 'nvim-dap not found'
     return
   end
   dap.run {

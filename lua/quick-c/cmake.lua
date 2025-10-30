@@ -346,12 +346,12 @@ end
 function M.build_in_root(config, root, target, run_terminal)
   -- Guard: if no CMakeLists.txt found, warn and return early
   if not find_cmakelists(root) then
-    U.notify_warn('未检测到 CMakeLists.txt，当前目录不是 CMake 项目: ' .. tostring(root))
+    U.notify_warn('CMakeLists.txt not found. Not a CMake project: ' .. tostring(root))
     return
   end
   M.ensure_configured_async(config, root, function(ok, bdir, _)
     if not ok then
-      U.notify_err 'CMake 配置失败'
+      U.notify_err 'CMake configuration failed'
       return
     end
     local cmargs = (config.cmake and config.cmake.args) or {}
