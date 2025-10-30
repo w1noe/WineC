@@ -299,7 +299,7 @@ jobs:
               local function run_make_in_terminal(cmd) end \
               pcall(function() tel.telescope_make(cfg, cwd_resolve, parse_targets, noop, choose_make, shell_quote_path, run_make_in_terminal) end); \
               pcall(function() tel.telescope_cmake(cfg) end); \
-            " +qall! | tee -a artifacts/ci.log
+            " +qall! 2>&1 | tee -a artifacts/ci.log
 
       - name: CMake list targets (read-only, no telescope) (Windows)
         if: runner.os == 'Windows'
