@@ -32,10 +32,29 @@
  ---@param dir string
  ---@param ondone fun(entries: {name:string,type:string}[])
  local function scandir_async(uv, dir, ondone)
-  local ok = pcall(function()
+  -- 兼容两种环境：
+  -- 1) 某些运行时可能提供回调式 fs_scandir（少见）
+  -- 2) Neovim/luv 中 fs_scandir 为同步 API（常见，CI 环境）
+  -- 策略：尝试回调式；若短时间未触发，则回退同步扫描，并确保只回调一次。
+  local done = false
+  local function safe_done(list)
+    if done then
+      return
+    end
+    done = true
+    vim.schedule(function()
+      ondone(list or {})
+    end)
+  end
+
+  -- 尝试回调式（若不支持，该调用不会触发回调）
+  pcall(function()
     uv.fs_scandir(dir, function(err, req)
+      if done then
+        return
+      end
       if err or not req then
-        ondone {}
+        safe_done {}
         return
       end
       local out = {}
@@ -46,27 +65,28 @@
         end
         out[#out + 1] = { name = name, type = t }
       end
-      ondone(out)
+      safe_done(out)
     end)
   end)
-  if ok then
-    return
-  end
-  -- 回退：同步 fs_scandir + schedule，确保回调语义一致（异步触发）
-  local req = uv.fs_scandir(dir)
-  local out = {}
-  if req then
-    while true do
-      local name, t = uv.fs_scandir_next(req)
-      if not name then
-        break
-      end
-      out[#out + 1] = { name = name, type = t }
+
+  -- 定时兜底：若回调未在极短时间内触发，执行同步扫描并异步回调
+  vim.defer_fn(function()
+    if done then
+      return
     end
-  end
-  vim.schedule(function()
-    ondone(out)
-  end)
+    local req = uv.fs_scandir(dir)
+    local out = {}
+    if req then
+      while true do
+        local name, t = uv.fs_scandir_next(req)
+        if not name then
+          break
+        end
+        out[#out + 1] = { name = name, type = t }
+      end
+    end
+    safe_done(out)
+  end, 5)
  end
 
  --- 异步查找最近的包含 Makefile 的目录（受 :pwd 边界与忽略目录控制）
