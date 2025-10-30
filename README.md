@@ -85,6 +85,8 @@
     { "<leader>cqC", desc = "Quick-c: CMake targets (Telescope)" },
     { "<leader>cqB", desc = "Quick-c: CMake build" },
     { "<leader>cqc", desc = "Quick-c: CMake configure" },
+    { "<leader>cqx", desc = "Quick-c: Stop current task" },
+    { "<leader>cqt", desc = "Quick-c: Retry last task" },
   },
   -- 3) 命令触发（调用命令时加载，等同“命令提前加载”）
   cmd = {
@@ -163,6 +165,8 @@ use({
 |  | `QuickCCMakeConfigure` | 执行 cmake 配置（-S/-B） | `<leader>cqc` |
 | Sources | — | Telescope 源文件选择器 | `<leader>cqS` |
 | Diagnostics | `QuickCQuickfix` | 打开 quickfix（优先 Telescope） | `<leader>cqf` |
+| Tasks | `QuickCStop` | 取消当前内部构建任务 | `<leader>cqx` |
+|  | `QuickCRetry` | 重试最近一个内部构建任务 | `<leader>cqt` |
 | Config | `QuickCCompileDB` | 应用编译数据库（生成到当前文件目录） | — |
 |  | `QuickCCompileDBGen` | 生成 compile_commands.json | — |
 |  | `QuickCCompileDBUse` | 使用外部 compile_commands.json | — |
@@ -478,10 +482,13 @@ require('quick-c').setup({
 - `<leader>cqM` → 打开 Make 目标选择器（Telescope）
 - `<leader>cqS` → 打开源文件选择器（Telescope）
 - `<leader>cqf` → 打开 quickfix 列表（Telescope）
+ - `<leader>cqx` → 取消当前内部任务（仅单/多文件构建）
+ - `<leader>cqt` → 重试最近内部任务（仅单/多文件构建）
 
 提示：
 - 以上键位均可通过 `setup({ keymaps = { ... } })` 自定义或禁用。
 - 插件设置键位时使用 `unique=true`，不会覆盖你已有的映射；如键位已被占用会跳过注入。
+ - QuickCStop/QuickCRetry 仅作用于插件内部“单/多文件构建”任务队列；对 Make/CMake 流程不生效。
 
 ### 📚 Telescope 预览说明
 

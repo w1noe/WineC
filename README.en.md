@@ -102,6 +102,8 @@ If the current buffer is unnamed and modified, auto-jump from diagnostics is ski
 |  | `QuickCCMakeConfigure` | Run cmake configure (-S/-B) | `<leader>cqc` |
 | Sources | — | Telescope source picker | `<leader>cqS` |
 | Diagnostics | `QuickCQuickfix` | Open quickfix (prefer Telescope) | `<leader>cqf` |
+| Tasks | `QuickCStop` | Cancel the current internal build task | `<leader>cqx` |
+|  | `QuickCRetry` | Retry the last internal build task | `<leader>cqt` |
 | Config | `QuickCCompileDB` | Apply compile_commands.json (generate into source dir) | — |
 |  | `QuickCCompileDBGen` | Generate compile_commands.json | — |
 |  | `QuickCCompileDBUse` | Use external compile_commands.json | — |
@@ -123,6 +125,8 @@ If the current buffer is unnamed and modified, auto-jump from diagnostics is ski
 - `<leader>cqS` Telescope source picker
 - `<leader>cqf` Open quickfix (Telescope)
 - `<leader>cqL` Build logs (Telescope)
+ - `<leader>cqx` Stop current internal task (single/multi-file builds only)
+ - `<leader>cqt` Retry last internal task (single/multi-file builds only)
 
 ## 🧪 Diagnostics -> Quickfix / Telescope
 
@@ -130,6 +134,7 @@ If the current buffer is unnamed and modified, auto-jump from diagnostics is ski
 - Auto open/jump policy: `always | error | warning | never`
 - Prefer an enhanced Quickfix Telescope picker when available: right-side preview shows the item's message and ±3 lines of source context. Fallbacks to `telescope.builtin.quickfix`, then to `:copen`.
 - If the current buffer is unnamed and modified, auto-jump is skipped to avoid save prompts.
+ - Note: QuickCStop/QuickCRetry only affect the plugin's internal task queue for single/multi-file builds; they do not apply to Make/CMake flows.
 
 ## ⚙️ Configuration
 
@@ -370,6 +375,8 @@ require('quick-c').setup({
     { "<leader>cqM", desc = "Quick-c: Make targets (Telescope)" },
     { "<leader>cqS", desc = "Quick-c: Select sources (Telescope)" },
     { "<leader>cqf", desc = "Quick-c: Open quickfix (Telescope)" },
+    { "<leader>cqx", desc = "Quick-c: Stop current task" },
+    { "<leader>cqt", desc = "Quick-c: Retry last task" },
   },
   cmd = {
     "QuickCBuild", "QuickCRun", "QuickCBR", "QuickCDebug",
