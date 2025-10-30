@@ -448,17 +448,30 @@ function M.telescope_make(
                 if set_ft then
                   pcall(vim.api.nvim_buf_set_option, self.state.bufnr, 'filetype', 'make')
                 end
-                -- place cursor at target definition if found
-                if self.state and self.state.winid and target_line_idx then
-                  pcall(vim.api.nvim_win_set_cursor, self.state.winid, { target_line_idx, 0 })
+                -- place cursor at target definition if found (schedule to ensure window is ready)
+                local function jump(i)
+                  if not (self.state and self.state.winid and i) then
+                    return
+                  end
+                  vim.schedule(function()
+                    pcall(vim.api.nvim_win_set_cursor, self.state.winid, { i, 0 })
+                    -- center the line
+                    pcall(vim.api.nvim_win_call, self.state.winid, function()
+                      pcall(vim.cmd, 'normal! zz')
+                    end)
+                    -- transient highlight
+                    pcall(vim.api.nvim_buf_add_highlight, self.state.bufnr, -1, 'Search', i - 1, 0, -1)
+                  end)
+                end
+                if target_line_idx then
+                  jump(target_line_idx)
                 else
-                  -- If buffer is the actual file (loaded via buffer_previewer_maker), search in buffer
-                  if entry and entry.kind == 'target' and type(entry.value) == 'string' and self.state and self.state.winid then
+                  if entry and entry.kind == 'target' and type(entry.value) == 'string' then
                     local buflines = vim.api.nvim_buf_get_lines(self.state.bufnr, 0, -1, false)
                     local pat = '^%s*' .. escape_lua_magic(entry.value) .. '%s*:'
                     for i = 1, #buflines do
                       if type(buflines[i]) == 'string' and buflines[i]:match(pat) then
-                        pcall(vim.api.nvim_win_set_cursor, self.state.winid, { i, 0 })
+                        jump(i)
                         break
                       end
                     end
