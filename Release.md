@@ -13,6 +13,11 @@
 - 移除“构建完成悬浮摘要”浮窗，改为使用 `notify` 提示，包含：结果、耗时、错误/警告计数、完整命令行。避免遮挡终端与已有面板。
 - 保持 quickfix 集成与自动打开/跳转策略不变（由 `diagnostics.quickfix` 控制）。
 
+### 修复
+- `QuickCCMakeRun` 在非 CMake 目录或快速事件上下文下报错 `E5560`：
+  - 目录创建与 `jobstart` 调用改为 `vim.schedule(...)` 执行，避免 fast event 上下文限制。
+  - 当未检测到 `CMakeLists.txt` 时给出友好提示并返回，不再进入 configure/build。
+
 ### 文档
 - README（中/英）新增示例：`build = { timeout_ms = 120000 }`。
 
