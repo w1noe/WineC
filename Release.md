@@ -10,6 +10,12 @@
 - 移除了 `compile_cmds` 和 `runtime` 配置项，这些配置在当前版本中已不再使用
 - 修复CI日志记录中的stderr丢失问题
 
+### 工程化（CI）
+- 不中断测试：各子步骤使用 `set +e`，失败不会短路；新增“汇总步骤”统一根据子步骤退出码判定失败。
+- 日志完整上传：上传步骤 `if: always()`，确保任何情况下都会上传工件。
+- 详细日志：所有 `nvim` 命令追加 `2>&1 | tee -a artifacts/ci.log` 合并 stderr；关键步骤启用 `-V3 -v`、`+messages`，并用 `xpcall(..., debug.traceback)` 打印 Lua 堆栈；分阶段标记 `STEP{n} begin/end` 便于定位卡点。
+- 稳定性：适度提升 `vim.wait` 超时阈值（如 3000→8000ms，5000→12000ms）以降低 CI 抖动带来的偶发超时。
+
 ### 配置
 - `autosave` 配置块（在 `setup()` 或 `.quick-c.json` 中设置）：
   ```lua

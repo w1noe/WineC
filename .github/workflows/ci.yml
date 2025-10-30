@@ -260,27 +260,33 @@ jobs:
         if: runner.os == 'macOS'
         shell: bash
         run: |
+          set -x
           set +e
-          nvim --headless -u NONE -n -Es \
+          nvim -V3 -v --headless -u NONE -n -Es \
             +"lua \
-              vim.opt.runtimepath:append(vim.fn.getcwd()); \
-              local tel = require('quick-c.telescope'); \
-              local cfg = { make = { telescope = { preview = false } }, cmake = { telescope = { preview = false } } }; \
-              local function noop() end \
-              local function cwd_resolve(base, cb) cb(vim.fn.getcwd()) end \
-              local function parse_targets(cwd, cb) cb({ targets = {}, phony = {} }) end \
-              local function choose_make() return 'make' end \
-              local function shell_quote_path(p) return p end \
-              local function run_make_in_terminal(cmd) end \
-              pcall(function() tel.telescope_make(cfg, cwd_resolve, parse_targets, noop, choose_make, shell_quote_path, run_make_in_terminal) end); \
-              pcall(function() tel.telescope_cmake(cfg) end); \
-            " +qall! 2>&1 | tee -a artifacts/ci.log
+              local function main() \
+                vim.opt.runtimepath:append(vim.fn.getcwd()); \
+                local tel = require('quick-c.telescope'); \
+                local cfg = { make = { telescope = { preview = false } }, cmake = { telescope = { preview = false } } }; \
+                local function noop() end \
+                local function cwd_resolve(base, cb) cb(vim.fn.getcwd()) end \
+                local function parse_targets(cwd, cb) cb({ targets = {}, phony = {} }) end \
+                local function choose_make() return 'make' end \
+                local function shell_quote_path(p) return p end \
+                local function run_make_in_terminal(cmd) end \
+                pcall(function() tel.telescope_make(cfg, cwd_resolve, parse_targets, noop, choose_make, shell_quote_path, run_make_in_terminal) end); \
+                pcall(function() tel.telescope_cmake(cfg) end); \
+              end \
+              local ok, err = xpcall(main, debug.traceback); \
+              if not ok then print('LUA_ERR:'..tostring(err)) end \
+            " +messages +qall! 2>&1 | tee -a artifacts/ci.log
           echo "PICKER_MAC:$?" >> artifacts/status.txt
 
-      - name: CMake list targets (read-only, no telescope) (macOS)
+      - name: CMake configure smoke (macOS)
         if: runner.os == 'macOS'
         shell: bash
         run: |
+          set -x
           set +e
           mkdir -p tests/smoke
           cat > tests/smoke/CMakeLists.txt << 'EOF'
@@ -293,20 +299,48 @@ jobs:
           int main(){ puts("ok"); return 0; }
           EOF
           nvim --headless -u NONE -n -Es \
+            +"lua vim.opt.runtimepath:append(vim.fn.getcwd()); vim.cmd('lcd tests/smoke'); require('quick-c').setup({})" \
+            +QuickCCMakeConfigure +qall! 2>&1 | tee -a artifacts/ci.log
+          echo "CMAKE_CONFIGURE_MAC:$?" >> artifacts/status.txt
+
+      - name: CMake list targets (read-only, no telescope) (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -x
+          set +e
+          mkdir -p tests/smoke
+          cat > tests/smoke/CMakeLists.txt << 'EOF'
+          cmake_minimum_required(VERSION 3.10)
+          project(foo C)
+          add_executable(foo main.c)
+          EOF
+          cat > tests/smoke/main.c << 'EOF'
+          #include <stdio.h>
+          int main(){ puts("ok"); return 0; }
+          EOF
+          nvim -V3 -v --headless -u NONE -n -Es \
             +"lua \
-              vim.opt.runtimepath:append(vim.fn.getcwd()); \
-              vim.cmd('lcd tests/smoke'); \
-              local qc = require('quick-c'); qc.setup({}); \
-              local CM = require('quick-c.cmake'); \
-              local base = vim.fn.getcwd(); \
-              local done1, root = false, nil; \
-              CM.resolve_root_async(qc._config, base, function(r) root = r; done1 = true end); \
-              assert(vim.wait(8000, function() return done1 end) ~= 0, 'resolve_root_async timeout'); \
-              local done2, list = false, nil; \
-              CM.list_targets_async(qc._config, root, function(t) list = t; done2 = true end); \
-              assert(vim.wait(12000, function() return done2 end) ~= 0, 'list_targets_async timeout'); \
-              local n = (list and #list) or 0; print('CMAKE_TARGETS_SZ:'..tostring(n)); \
-            " +qall! 2>&1 | tee -a artifacts/ci.log
+              local function main() \
+                vim.opt.runtimepath:append(vim.fn.getcwd()); \
+                vim.cmd('lcd tests/smoke'); \
+                local qc = require('quick-c'); qc.setup({}); \
+                local CM = require('quick-c.cmake'); \
+                local base = vim.fn.getcwd(); \
+                local done1, root = false, nil; \
+                print('STEP1 begin'); \
+                CM.resolve_root_async(qc._config, base, function(r) root = r; done1 = true end); \
+                assert(vim.wait(8000, function() return done1 end) ~= 0, 'resolve_root_async timeout'); \
+                print('STEP1 end root='..tostring(root)); \
+                local done2, list = false, nil; \
+                print('STEP2 begin'); \
+                CM.list_targets_async(qc._config, root, function(t) list = t; done2 = true end); \
+                assert(vim.wait(12000, function() return done2 end) ~= 0, 'list_targets_async timeout'); \
+                local n = (list and #list) or 0; print('STEP2 end CMAKE_TARGETS_SZ:'..tostring(n)); \
+              end \
+              local ok, err = xpcall(main, debug.traceback); \
+              if not ok then print('LUA_ERR:'..tostring(err)) end \
+            " +messages +qall! 2>&1 | tee -a artifacts/ci.log
           echo "CMAKE_LIST_MAC:$?" >> artifacts/status.txt
 
       - name: Picker build (no-interaction) smoke (Windows)
