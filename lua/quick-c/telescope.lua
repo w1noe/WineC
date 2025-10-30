@@ -399,6 +399,11 @@ function M.telescope_make(
                   local matches = { ['^']='%^', ['$']='%$', ['(']='%(', [')']='%)', ['%']='%%', ['.']='%.', ['[']='%[', [']']='%]', ['*']='%*', ['+']='%+', ['-']='%-', ['?']='%?' }
                   return (s:gsub('.', matches))
                 end
+                local function to_vim_pat(target)
+                  -- Build Vim regex: ^\s*<escaped_target>\s*:
+                  local escaped = vim.fn.escape(target, '\\^$.*[]')
+                  return '^\\s*' .. escaped .. '\\s*:'
+                end
                 if st.size and st.size > max_bytes then
                   local ok, lines = pcall(vim.fn.readfile, abspath, '', max_lines)
                   if not ok or not lines then
@@ -448,34 +453,64 @@ function M.telescope_make(
                 if set_ft then
                   pcall(vim.api.nvim_buf_set_option, self.state.bufnr, 'filetype', 'make')
                 end
-                -- place cursor at target definition if found (schedule to ensure window is ready)
-                local function jump(i)
+                -- place cursor at target definition if found (defer to ensure window/layout is ready)
+                local function jump(i, lua_pat, vim_pat)
                   if not (self.state and self.state.winid and i) then
+                    -- fallback: if i not provided, try pattern search later
+                    if self.state and self.state.winid and (vim_pat or lua_pat) then
+                      local vpat = vim_pat
+                      if not vpat and entry and entry.kind == 'target' and type(entry.value) == 'string' then
+                        vpat = to_vim_pat(entry.value)
+                      end
+                      vim.defer_fn(function()
+                        pcall(vim.api.nvim_win_call, self.state.winid, function()
+                          if vpat then
+                            pcall(vim.fn.setreg, '/', vpat)
+                            pcall(vim.fn.search, vpat, 'w')
+                            pcall(vim.cmd, 'normal! zz')
+                          end
+                        end)
+                      end, 50)
+                    end
                     return
                   end
-                  vim.schedule(function()
+                  vim.defer_fn(function()
                     pcall(vim.api.nvim_win_set_cursor, self.state.winid, { i, 0 })
-                    -- center the line
                     pcall(vim.api.nvim_win_call, self.state.winid, function()
                       pcall(vim.cmd, 'normal! zz')
                     end)
-                    -- transient highlight
                     pcall(vim.api.nvim_buf_add_highlight, self.state.bufnr, -1, 'Search', i - 1, 0, -1)
-                  end)
+                  end, 50)
+                end
+                local vpat_final = nil
+                if entry and entry.kind == 'target' and type(entry.value) == 'string' then
+                  vpat_final = to_vim_pat(entry.value)
                 end
                 if target_line_idx then
-                  jump(target_line_idx)
+                  jump(target_line_idx, nil, vpat_final)
                 else
                   if entry and entry.kind == 'target' and type(entry.value) == 'string' then
                     local buflines = vim.api.nvim_buf_get_lines(self.state.bufnr, 0, -1, false)
                     local pat = '^%s*' .. escape_lua_magic(entry.value) .. '%s*:'
                     for i = 1, #buflines do
                       if type(buflines[i]) == 'string' and buflines[i]:match(pat) then
-                        jump(i)
+                        jump(i, pat, vpat_final)
                         break
                       end
                     end
                   end
+                end
+                -- Always run a second-chance search after Telescope finishes drawing
+                if vpat_final then
+                  vim.defer_fn(function()
+                    if self.state and self.state.winid then
+                      pcall(vim.api.nvim_win_call, self.state.winid, function()
+                        pcall(vim.fn.setreg, '/', vpat_final)
+                        pcall(vim.fn.search, vpat_final, 'w')
+                        pcall(vim.cmd, 'normal! zz')
+                      end)
+                    end
+                  end, 120)
                 end
               end,
             }
