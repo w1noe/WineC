@@ -354,61 +354,6 @@ end
 -- Parse compiler diagnostics (gcc/clang/msvc) into quickfix items
 -- use U.parse_diagnostics
 
-local function show_build_summary(config, params)
-  -- params: { code, exe, cmdline, lines, duration_ms }
-  local lines = params.lines or {}
-  local items, has_error, has_warning = U.parse_diagnostics(lines)
-  local err_cnt, warn_cnt = 0, 0
-  for _, it in ipairs(items) do
-    if it.type == 'E' then err_cnt = err_cnt + 1 else warn_cnt = warn_cnt + 1 end
-  end
-  local summary = {}
-  table.insert(summary, string.format('Build %s', (params.code == 0) and 'OK' or ('Failed (' .. tostring(params.code) .. ')')))
-  if params.exe and params.exe ~= '' then
-    table.insert(summary, 'Target: ' .. params.exe)
-  end
-  if params.duration_ms then
-    table.insert(summary, string.format('Time: %.2fs', (params.duration_ms or 0) / 1000))
-  end
-  table.insert(summary, string.format('Errors: %d, Warnings: %d', err_cnt, warn_cnt))
-  if params.cmdline and #params.cmdline > 0 then
-    table.insert(summary, 'Cmd: ' .. params.cmdline)
-  end
-  table.insert(summary, '')
-  table.insert(summary, 'Press o to open full log, q to close')
-
-  local buf = vim.api.nvim_create_buf(false, true)
-  pcall(vim.api.nvim_buf_set_option, buf, 'bufhidden', 'wipe')
-  pcall(vim.api.nvim_buf_set_lines, buf, 0, -1, false, summary)
-  local width = math.min(0.7 * vim.o.columns, 100)
-  local height = math.min(#summary + 2, 15)
-  local row = math.floor((vim.o.lines - height) / 2)
-  local col = math.floor((vim.o.columns - width) / 2)
-  local win = vim.api.nvim_open_win(buf, true, {
-    relative = 'editor',
-    row = row,
-    col = col,
-    width = math.floor(width),
-    height = height,
-    style = 'minimal',
-    border = 'rounded',
-  })
-  local function open_log()
-    local latest = vim.fn.stdpath('data') .. '/quick-c/logs/latest-build.log'
-    if vim.fn.filereadable(latest) == 1 then
-      vim.cmd('tabnew ' .. vim.fn.fnameescape(latest))
-    else
-      U.notify_warn '没有可用的构建日志'
-    end
-  end
-  pcall(vim.keymap.set, 'n', 'o', function()
-    open_log()
-  end, { buffer = buf, nowait = true, silent = true })
-  pcall(vim.keymap.set, 'n', 'q', function()
-    if vim.api.nvim_win_is_valid(win) then pcall(vim.api.nvim_win_close, win, true) end
-  end, { buffer = buf, nowait = true, silent = true })
-end
-
 function B.get_output_name_async(config, sources, preset_name, cb, default_override)
   local is_win = U.is_windows()
   if preset_name and preset_name ~= '' then
@@ -507,6 +452,16 @@ function B.build(config, notify, opts)
             for _, s in ipairs(all_stdout) do table.insert(lines, s) end
             for _, s in ipairs(all_stderr) do table.insert(lines, s) end
             if #lines > 0 then write_build_logs(lines) end
+            -- Compute diagnostics summary for notification
+            local items = {}
+            do
+              local parsed = { U.parse_diagnostics(lines) }
+              items = parsed[1] or {}
+            end
+            local err_cnt, warn_cnt = 0, 0
+            for _, it in ipairs(items) do
+              if it.type == 'E' then err_cnt = err_cnt + 1 else warn_cnt = warn_cnt + 1 end
+            end
             if qf_enabled and #lines > 0 then
               local items, has_error, has_warning = U.parse_diagnostics(lines)
               if #items > 0 then
@@ -544,17 +499,22 @@ function B.build(config, notify, opts)
                 if code == 0 then vim.fn.setqflist {} end
               end
             end
+            local dur = (((vim.loop and vim.loop.now and vim.loop.now()) or started_at) - started_at)
+            local secs = (dur or 0) / 1000
+            local msg = {}
             if code == 0 then
-              notify.info('Build OK -> ' .. exe)
+              table.insert(msg, string.format('Build OK -> %s', exe))
             else
-              notify.err('Build failed (' .. code .. ')')
+              table.insert(msg, string.format('Build failed (%d)', code))
             end
+            table.insert(msg, string.format('Time: %.2fs | Errors: %d, Warnings: %d', secs, err_cnt, warn_cnt))
+            table.insert(msg, 'Cmd: ' .. cmdline)
+            local full = table.concat(msg, '\n')
+            if code == 0 then notify.info(full) else notify.err(full) end
             if code == 0 then
               local root = vim.fn.getcwd()
               LAST_EXE[U.norm(root)] = exe
             end
-            local dur = (((vim.loop and vim.loop.now and vim.loop.now()) or started_at) - started_at)
-            show_build_summary(config, { code = code, exe = exe, cmdline = cmdline, lines = lines, duration_ms = dur })
             if opts.on_exit then pcall(opts.on_exit, code, exe) end
             done(code)
           end,

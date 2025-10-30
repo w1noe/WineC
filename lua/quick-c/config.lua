@@ -31,6 +31,15 @@ C.defaults = {
     -- 当 mode = 'use' 时，从此路径复制 compile_commands.json
     use_path = nil,
   },
+  -- Build behavior
+  build = {
+    -- Timeout for single-file builds started via jobstart (ms). 0 = no timeout
+    timeout_ms = 0,
+    summary = {
+      -- Show floating summary after build finishes. Default off to avoid covering terminal.
+      enabled = false,
+    },
+  },
   diagnostics = {
     quickfix = {
       enabled = true, -- 是否收集编译输出到 quickfix
