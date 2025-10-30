@@ -7,10 +7,12 @@
   - Make：监听 `Makefile`/`makefile`/`GNUmakefile`，变化后清空当前目录的目标解析缓存。
   - CMake：监听项目根下的 `CMakeLists.txt`，变化后清空对应构建目录的目标列表缓存。
 - Make 目标预览定位：使用 `<leader>cqM` 选择目标时，右侧预览会自动跳转到该目标在 Makefile 中的规则定义行（匹配 `^<target>:`）。
+ - CMake 目标预览定位：使用 `<leader>cqC` 选择目标时，右侧预览会尝试跳转到 `CMakeLists.txt` 中该目标相关定义（`add_executable/add_library/add_custom_target/target_*`）。
 
 ### 改进
 - 解析效率：在文件未变更时继续复用 TTL 缓存；当脚本变更时即时失效，无需等待 TTL，响应更及时。
 - 体验一致性：Make/CMake 两条路径均采用 libuv 事件监听，行为统一、非阻塞。
+ - 预览可读性：Make/CMake 预览窗口启用软换行 `wrap/linebreak/breakindent`，长行展示更友好；定位跳转采用“延迟 + 二次正则搜索”更稳健。
 
 ### 兼容性
 - 无破坏性变更。默认启用监听；在不支持文件事件的环境下会自动静默回退，不影响现有功能。

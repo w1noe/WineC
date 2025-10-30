@@ -52,6 +52,7 @@
 - ✅ **配置检查**：`QuickCCheck` 检查配置（类型/路径/可执行性）并输出报告
 - 🧠 **LSP 集成**：一键为当前文件目录生成或使用指定 `compile_commands.json` 供 clangd 等 LSP 使用
 
+
 ## 📦 依赖
 
 - Neovim 0.8+
@@ -487,13 +488,17 @@ require('quick-c').setup({
 
 ### 📚 Telescope 预览说明
 
-- 目录选择器与目标选择器均内置 Makefile 预览，Windows 路径兼容更好。
-- 目标选择器阶段，预览固定显示已选目录中的 Makefile，不随光标移动刷新（避免卡顿）。
+- 目录选择器与目标选择器均内置 Make/CMake 预览，Windows 路径兼容更好。
+- 目标选择器阶段，预览固定显示当前目录的 `Makefile` 或项目根的 `CMakeLists.txt`，不随光标移动刷新（避免卡顿）。
+- 预览增强：
+  - **跳转到定义**：选中目标后，预览自动跳转至该目标在 `Makefile`/`CMakeLists.txt` 中的定义附近。
+  - **软换行**：预览窗口启用 wrap/linebreak/breakindent，长行可读性更好。
 - 对大文件自动截断，受以下配置项控制：
   - `make.telescope.preview`：是否启用预览。
   - `make.telescope.max_preview_bytes`：超过该字节数则改为按行读取并截断。
   - `make.telescope.max_preview_lines`：截断时最多显示的行数。
   - `make.telescope.set_filetype`：是否设置预览 buffer 的 `filetype=make`。
+  - CMake 预览默认也开启跳转与换行；如需更细配置，可按同样思路扩展 `cmake.telescope`。
 
 ### 🔌 终端选择行为
 

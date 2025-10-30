@@ -453,6 +453,12 @@ function M.telescope_make(
                 if set_ft then
                   pcall(vim.api.nvim_buf_set_option, self.state.bufnr, 'filetype', 'make')
                 end
+                -- enable wrapping for long lines in preview window
+                if self.state and self.state.winid then
+                  pcall(vim.api.nvim_win_set_option, self.state.winid, 'wrap', true)
+                  pcall(vim.api.nvim_win_set_option, self.state.winid, 'linebreak', true)
+                  pcall(vim.api.nvim_win_set_option, self.state.winid, 'breakindent', true)
+                end
                 -- place cursor at target definition if found (defer to ensure window/layout is ready)
                 local function jump(i, lua_pat, vim_pat)
                   if not (self.state and self.state.winid and i) then
@@ -704,6 +710,156 @@ function M.telescope_cmake(config)
             end,
           },
           sorter = conf.generic_sorter {},
+          previewer = (function()
+            local previewers = require 'telescope.previewers'
+            local conf_t = require('telescope.config').values
+            local uv = vim.loop
+            local function find_cmakelists(dir)
+              local p = U.join(dir, 'CMakeLists.txt')
+              local st = uv.fs_stat(p)
+              if st and st.type == 'file' then
+                return p
+              end
+              return nil
+            end
+            return previewers.new_buffer_previewer {
+              define_preview = function(self, entry)
+                local path = find_cmakelists(root)
+                if not path or path == '' then
+                  vim.api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, { '[No CMakeLists.txt found]' })
+                  return
+                end
+                local abspath = vim.fn.fnamemodify(path, ':p')
+                local st = uv.fs_stat(abspath) or {}
+                local max_bytes = ((config.cmake and config.cmake.telescope and config.cmake.telescope.max_preview_bytes) or (200 * 1024))
+                local max_lines = ((config.cmake and config.cmake.telescope and config.cmake.telescope.max_preview_lines) or 2000)
+                local set_ft = true
+                local target_line_idx = nil
+                local function escape_lua_magic(s)
+                  local matches = { ['^']='%^', ['$']='%$', ['(']='%(', [')']='%)', ['%']='%%', ['.']='%.', ['[']='%[', [']']='%]', ['*']='%*', ['+']='%+', ['-']='%-', ['?']='%?' }
+                  return (s:gsub('.', matches))
+                end
+                local function to_vim_pat(target)
+                  -- Common CMake target definition patterns
+                  -- 1) add_executable/add_library/add_custom_target(<t>
+                  -- 2) target_* (<t> ...)
+                  local esc = vim.fn.escape(target, '\\^$.*[]')
+                  local p1 = '^\\s*\%(add_executable\|add_library\|add_custom_target\)\\s*(' .. '\\s*' .. esc .. '\\>.*'
+                  local p2 = '^\\s*target_[a-zA-Z_][a-zA-Z0-9_]*\\s*(' .. '\\s*' .. esc .. '\\>.*'
+                  return '\\v\%(' .. p1 .. '\\|' .. p2 .. '\\)'
+                end
+                if st.size and st.size > max_bytes then
+                  local ok, lines = pcall(vim.fn.readfile, abspath, '', max_lines)
+                  if not ok or not lines then
+                    lines = { '[Preview truncated: failed to read file]' }
+                  end
+                  table.insert(lines, 1, string.format('[Preview truncated: %d bytes > %d bytes, showing first %d lines]', st.size or 0, max_bytes, max_lines))
+                  vim.api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, lines)
+                  if entry and entry.kind == 'target' and type(entry.value) == 'string' then
+                    -- simple heuristic on truncated content
+                    local pats = {
+                      '^%s*add_executable%s*%(',
+                      '^%s*add_library%s*%(',
+                      '^%s*add_custom_target%s*%(',
+                      '^%s*target_%w+%s*%(',
+                    }
+                    for i = 1, #lines do
+                      local ln = lines[i]
+                      if type(ln) == 'string' then
+                        for _, p in ipairs(pats) do
+                          if ln:match(p) and ln:match('%f[%w_]' .. escape_lua_magic(entry.value) .. '%f[^%w_]') then
+                            target_line_idx = i
+                            break
+                          end
+                        end
+                        if target_line_idx then break end
+                      end
+                    end
+                  end
+                else
+                  local ok = pcall(conf_t.buffer_previewer_maker, abspath, self.state.bufnr, { bufname = self.state.bufname })
+                  if not ok then
+                    local ok2, lines = pcall(vim.fn.readfile, abspath)
+                    if not ok2 or not lines then
+                      lines = { '[Failed to read CMakeLists.txt]' }
+                    end
+                    vim.api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, lines)
+                    if entry and entry.kind == 'target' and type(entry.value) == 'string' then
+                      local pats = {
+                        '^%s*add_executable%s*%(',
+                        '^%s*add_library%s*%(',
+                        '^%s*add_custom_target%s*%(',
+                        '^%s*target_%w+%s*%(',
+                      }
+                      for i = 1, #lines do
+                        local ln = lines[i]
+                        if type(ln) == 'string' then
+                          for _, p in ipairs(pats) do
+                            if ln:match(p) and ln:match('%f[%w_]' .. escape_lua_magic(entry.value) .. '%f[^%w_]') then
+                              target_line_idx = i
+                              break
+                            end
+                          end
+                          if target_line_idx then break end
+                        end
+                      end
+                    end
+                  end
+                end
+                if set_ft then
+                  pcall(vim.api.nvim_buf_set_option, self.state.bufnr, 'filetype', 'cmake')
+                end
+                -- wrapping for better readability
+                if self.state and self.state.winid then
+                  pcall(vim.api.nvim_win_set_option, self.state.winid, 'wrap', true)
+                  pcall(vim.api.nvim_win_set_option, self.state.winid, 'linebreak', true)
+                  pcall(vim.api.nvim_win_set_option, self.state.winid, 'breakindent', true)
+                end
+                -- deferred jump and fallback search
+                local function jump(i, vpat)
+                  if not (self.state and self.state.winid and i) then
+                    if self.state and self.state.winid and vpat then
+                      vim.defer_fn(function()
+                        pcall(vim.api.nvim_win_call, self.state.winid, function()
+                          pcall(vim.fn.setreg, '/', vpat)
+                          pcall(vim.fn.search, vpat, 'w')
+                          pcall(vim.cmd, 'normal! zz')
+                        end)
+                      end, 60)
+                    end
+                    return
+                  end
+                  vim.defer_fn(function()
+                    pcall(vim.api.nvim_win_set_cursor, self.state.winid, { i, 0 })
+                    pcall(vim.api.nvim_win_call, self.state.winid, function()
+                      pcall(vim.cmd, 'normal! zz')
+                    end)
+                    pcall(vim.api.nvim_buf_add_highlight, self.state.bufnr, -1, 'Search', i - 1, 0, -1)
+                  end, 50)
+                end
+                local vpat_final = nil
+                if entry and entry.kind == 'target' and type(entry.value) == 'string' then
+                  vpat_final = to_vim_pat(entry.value)
+                end
+                if target_line_idx then
+                  jump(target_line_idx, vpat_final)
+                elseif vpat_final then
+                  jump(nil, vpat_final)
+                end
+                if vpat_final then
+                  vim.defer_fn(function()
+                    if self.state and self.state.winid then
+                      pcall(vim.api.nvim_win_call, self.state.winid, function()
+                        pcall(vim.fn.setreg, '/', vpat_final)
+                        pcall(vim.fn.search, vpat_final, 'w')
+                        pcall(vim.cmd, 'normal! zz')
+                      end)
+                    end
+                  end, 120)
+                end
+              end,
+            }
+          end)(),
           attach_mappings = function(bufnr, map)
             local actions = require 'telescope.actions'
             local action_state = require 'telescope.actions.state'
