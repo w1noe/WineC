@@ -290,37 +290,40 @@ function M.ensure_configured_async(config, root, on_done)
     on_done(true, bdir)
     return
   end
-  vim.fn.mkdir(bdir, 'p')
-  local cmd = configure_args(config, root, bdir)
-  local all = {}
-  local ok = vim.fn.jobstart(cmd, {
-    stdout_buffered = true,
-    stderr_buffered = true,
-    on_stdout = function(_, d)
-      if d then
-        for _, l in ipairs(d) do
-          table.insert(all, l)
+  -- Schedule mkdir/jobstart to avoid E5560 in fast event context
+  vim.schedule(function()
+    pcall(vim.fn.mkdir, bdir, 'p')
+    local cmd = configure_args(config, root, bdir)
+    local all = {}
+    local ok = vim.fn.jobstart(cmd, {
+      stdout_buffered = true,
+      stderr_buffered = true,
+      on_stdout = function(_, d)
+        if d then
+          for _, l in ipairs(d) do
+            table.insert(all, l)
+          end
         end
-      end
-    end,
-    on_stderr = function(_, d)
-      if d then
-        for _, l in ipairs(d) do
-          table.insert(all, l)
+      end,
+      on_stderr = function(_, d)
+        if d then
+          for _, l in ipairs(d) do
+            table.insert(all, l)
+          end
         end
-      end
-    end,
-    on_exit = function(_, code)
-      if code == 0 then
-        on_done(true, bdir)
-      else
-        on_done(false, bdir, all)
-      end
-    end,
-  })
-  if ok <= 0 then
-    on_done(false, bdir, { 'failed to start cmake configure' })
-  end
+      end,
+      on_exit = function(_, code)
+        if code == 0 then
+          on_done(true, bdir)
+        else
+          on_done(false, bdir, all)
+        end
+      end,
+    })
+    if ok <= 0 then
+      on_done(false, bdir, { 'failed to start cmake configure' })
+    end
+  end)
 end
 
 local function cmake_build_cmd(config, bdir, target, extra)
@@ -341,6 +344,11 @@ local function cmake_build_cmd(config, bdir, target, extra)
 end
 
 function M.build_in_root(config, root, target, run_terminal)
+  -- Guard: if no CMakeLists.txt found, warn and return early
+  if not find_cmakelists(root) then
+    U.notify_warn('未检测到 CMakeLists.txt，当前目录不是 CMake 项目: ' .. tostring(root))
+    return
+  end
   M.ensure_configured_async(config, root, function(ok, bdir, _)
     if not ok then
       U.notify_err 'CMake 配置失败'
