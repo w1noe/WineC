@@ -5,6 +5,31 @@ local target_cache = {
   -- [cwd] = { mtime = <number|nil>, at = <os.time>, targets = {...} }
 }
 
+local make_watchers = {}
+
+local function ensure_make_watcher(cwd)
+  if not cwd or make_watchers[cwd] then
+    return
+  end
+  local uv = vim.loop
+  local h = uv.new_fs_event()
+  local ok = pcall(uv.fs_event_start, h, cwd, {}, function(err, fname)
+    if err or not fname then
+      return
+    end
+    if fname == 'Makefile' or fname == 'makefile' or fname == 'GNUmakefile' then
+      target_cache[cwd] = nil
+    end
+  end)
+  if not ok then
+    pcall(function()
+      h:close()
+    end)
+    return
+  end
+  make_watchers[cwd] = h
+end
+
 local function stat_makefile(cwd)
   local names = { 'Makefile', 'makefile', 'GNUmakefile' }
   for _, n in ipairs(names) do
@@ -227,6 +252,7 @@ function M.choose_make(config)
 end
 
 function M.parse_make_targets_in_cwd_async(config, cwd, cb)
+  ensure_make_watcher(cwd)
   local pref_prog = M.choose_make(config)
   if not pref_prog then
     cb {}

@@ -46,6 +46,8 @@ Lightweight Neovim plugin for C/C++: build, run, and debug the current file in o
   - Output panel: `cmake.output.{open,height}`
 - 🔭 Telescope enhancements: built-in Makefile preview, source multi-select, quick toggle .PHONY
 - 🧪 Enhanced Quickfix preview: when opening `cqf`, show detailed error and source context on the right
+- 🧠 Smart cache invalidation: watch `Makefile`/`CMakeLists.txt` changes and invalidate related caches immediately (not only TTL-based), reducing unnecessary re-parsing.
+- 🔎 Make/CMake preview upgrades: target picker preview jumps to the selected target's definition (deferred + fallback search) and enables soft wrapping (wrap/linebreak/breakindent) for readability.
 
 ## 🚀 Quick Start
 
@@ -425,13 +427,17 @@ require('quick-c').setup({
 
 ## 📚 Telescope preview notes
 
-- Both directory and target pickers include a Makefile preview with improved Windows path compatibility.
-- In the target picker, the preview is fixed to the Makefile in the selected directory (no live refresh for performance).
+- Both directory and target pickers include Make/CMake previews with improved Windows path compatibility.
+- In the target picker, the preview is fixed to the `Makefile` (selected directory) or `CMakeLists.txt` (project root) for performance.
+- Preview enhancements:
+  - Jump-to-definition: after selecting a target, the preview auto-scrolls to its definition in `Makefile`/`CMakeLists.txt`.
+  - Soft wrapping: wrap/linebreak/breakindent are enabled in preview for long lines.
 - Large files are truncated by bytes/lines; controlled by:
   - `make.telescope.preview`
   - `make.telescope.max_preview_bytes`
   - `make.telescope.max_preview_lines`
   - `make.telescope.set_filetype`
+  - CMake preview also enables jump and wrapping by default; advanced knobs can be added similarly under `cmake.telescope` if needed.
 
 ## 🔌 Terminal selection behavior
 

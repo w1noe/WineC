@@ -5,6 +5,7 @@ local _cache = {
   root = {},
   targets = {},
 }
+local _watchers = {}
 local function _now()
   return vim.loop.now() / 1000
 end
@@ -204,6 +205,35 @@ local function build_dir_for(config, root)
     return b
   end
   return U.join(root, b)
+end
+
+local function ensure_cmake_watcher(config, root)
+  if not root then
+    return
+  end
+  local key = U.norm(root)
+  if _watchers[key] then
+    return
+  end
+  local uv = vim.loop
+  local h = uv.new_fs_event()
+  local ok = pcall(uv.fs_event_start, h, root, {}, function(err, fname)
+    if err then
+      return
+    end
+    if fname == 'CMakeLists.txt' then
+      local bdir = build_dir_for(config, root)
+      local k = U.norm(bdir)
+      _cache.targets[k] = nil
+    end
+  end)
+  if not ok then
+    pcall(function()
+      h:close()
+    end)
+    return
+  end
+  _watchers[key] = h
 end
 
 local function is_configured(config, root)
@@ -513,6 +543,7 @@ local function parse_targets_from_help(lines)
 end
 
 function M.list_targets_async(config, root, cb)
+  ensure_cmake_watcher(config, root)
   M.ensure_configured_async(config, root, function(ok, bdir)
     if not ok then
       cb {}

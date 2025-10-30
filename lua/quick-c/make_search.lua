@@ -72,7 +72,9 @@ function M.find_make_root_async(config, start_dir, cb)
 
   local function _done(dir)
     _cache.single[key] = { val = dir, ts = _now() }
-    cb(dir)
+    vim.schedule(function()
+      cb(dir)
+    end)
   end
 
   local function is_ignored(name)
@@ -239,19 +241,22 @@ function M.find_make_roots_async(config, start_dir, cb)
 
   local function _done(list)
     _cache.multi[key] = { val = vim.deepcopy(list), ts = _now() }
-    cb(list)
+    vim.schedule(function()
+      cb(list)
+    end)
   end
 
   M.find_make_root_async(config, start_dir, function()
-    local cfg = config.make or {}
-    local names = { 'Makefile', 'makefile', 'GNUmakefile' }
-    local uv = vim.loop
-    local ignore = (cfg.search and cfg.search.ignore_dirs) or { '.git', 'node_modules', '.cache' }
+    vim.schedule(function()
+      local cfg = config.make or {}
+      local names = { 'Makefile', 'makefile', 'GNUmakefile' }
+      local uv = vim.loop
+      local ignore = (cfg.search and cfg.search.ignore_dirs) or { '.git', 'node_modules', '.cache' }
 
-    local function is_ignored(name)
-      for _, n in ipairs(ignore) do
-        if name == n then
-          return true
+      local function is_ignored(name)
+        for _, n in ipairs(ignore) do
+          if name == n then
+            return true
         end
       end
       return false
@@ -346,6 +351,7 @@ function M.find_make_roots_async(config, start_dir, cb)
       end
     end
     step()
+    end)
   end)
 end
 
