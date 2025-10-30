@@ -3,8 +3,6 @@ name: CI
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main, dev ]
 
 jobs:
   lint:
@@ -82,8 +80,8 @@ jobs:
       - name: Basic commands
         shell: bash
         run: |
-          nvim -V1 -v
-          nvim -V1 -v -Es \
+          nvim --headless --version | tee -a artifacts/ci.log
+          nvim --headless -u NONE -n -Es \
             +"lua vim.opt.runtimepath:append(vim.fn.getcwd()); require('quick-c').setup({})" \
             +QuickCHealth +QuickCCheck +QuickCReload +QuickCConfig +messages +qall! | tee -a artifacts/ci.log
 
@@ -91,7 +89,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          nvim -V1 -v -Es \
+          nvim --headless -u NONE -n -Es \
             +"lua local ok,err=pcall(function() vim.opt.runtimepath:append(vim.fn.getcwd()); require('quick-c').setup({}) end); if not ok then print('SETUP_ERR:'..tostring(err)) end" \
             +messages +qall! | tee -a artifacts/ci.log
           echo "Probe exit code: $?" || true
@@ -100,7 +98,7 @@ jobs:
         shell: bash
         run: |
           set -e
-          nvim -V1 -v -Es \
+          nvim --headless -u NONE -n -Es \
             +"lua \
               vim.opt.runtimepath:append(vim.fn.getcwd()); \
               local mods = { \
@@ -132,7 +130,7 @@ jobs:
         run: |
           set -e
           rm -rf tests/nomake && mkdir -p tests/nomake/sub
-          nvim -V1 -v -Es \
+          nvim --headless -u NONE -n -Es \
             +"lua \
               vim.opt.runtimepath:append(vim.fn.getcwd()); \
               vim.cmd('lcd tests/nomake'); \
@@ -160,7 +158,7 @@ jobs:
         shell: bash
         run: |
           set -e
-          nvim -V1 -v -Es \
+          nvim --headless -u NONE -n -Es \
             +"lua \
               vim.opt.runtimepath:append(vim.fn.getcwd()); \
               local ok_t = pcall(require, 'telescope'); \
@@ -185,7 +183,7 @@ jobs:
           #include <stdio.h>
           int main(){ puts("ok"); return 0; }
           EOF
-          nvim -Es \
+          nvim --headless -u NONE -n -Es \
             +"lua vim.opt.runtimepath:append(vim.fn.getcwd()); vim.cmd('lcd tests/smoke'); require('quick-c').setup({})" \
             +QuickCCMakeConfigure +qall! | tee -a artifacts/ci.log
 
@@ -194,7 +192,7 @@ jobs:
         shell: bash
         run: |
           set -e
-          nvim -V1 -v -Es \
+          nvim --headless -u NONE -n -Es \
             +"lua \
               vim.opt.runtimepath:append(vim.fn.getcwd()); \
               vim.cmd('lcd tests/smoke'); \
@@ -217,7 +215,7 @@ jobs:
         shell: bash
         run: |
           set -e
-          nvim -V1 -v -Es \
+          nvim --headless -u NONE -n -Es \
             +"lua \
               vim.opt.runtimepath:append(vim.fn.getcwd()); \
               vim.cmd('lcd tests/smoke'); \
@@ -238,7 +236,7 @@ jobs:
         shell: bash
         run: |
           set -e
-          nvim -V1 -v -Es \
+          nvim --headless -u NONE -n -Es \
             +"lua \
               vim.opt.runtimepath:append(vim.fn.getcwd()); \
               local tel = require('quick-c.telescope'); \
@@ -268,7 +266,7 @@ jobs:
           #include <stdio.h>
           int main(){ puts("ok"); return 0; }
           EOF
-          nvim -V1 -v -Es \
+          nvim --headless -u NONE -n -Es \
             +"lua \
               vim.opt.runtimepath:append(vim.fn.getcwd()); \
               vim.cmd('lcd tests/smoke'); \
@@ -289,7 +287,7 @@ jobs:
         shell: bash
         run: |
           set -e
-          nvim -V1 -v -Es \
+          nvim --headless -u NONE -n -Es \
             +"lua \
               vim.opt.runtimepath:append(vim.fn.getcwd()); \
               local tel = require('quick-c.telescope'); \
