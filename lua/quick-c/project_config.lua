@@ -31,7 +31,7 @@ function M.load_project_config(config_path)
 
   local ok, content = pcall(vim.fn.readfile, config_path)
   if not ok or not content or #content == 0 then
-    U.notify_warn('无法读取项目配置文件: ' .. config_path)
+    U.notify_warn('cannot read project config: ' .. config_path)
     return nil
   end
 
@@ -45,7 +45,7 @@ function M.load_project_config(config_path)
 
   -- 检查 JSON 内容是否为空
   if json_str:match '^%s*$' then
-    U.notify_warn('项目配置文件为空: ' .. config_path)
+    U.notify_warn('project config is empty: ' .. config_path)
     return nil
   end
 
@@ -57,7 +57,7 @@ function M.load_project_config(config_path)
     decoder = vim.fn.json_decode
   end
   if not decoder then
-    U.notify_warn '未找到 JSON 解析器，无法加载项目配置'
+    U.notify_warn 'cannot find json decoder'
     return nil
   end
 
@@ -65,16 +65,16 @@ function M.load_project_config(config_path)
   if not ok then
     local detail = type(config) == 'string' and config or nil
     if detail and detail ~= '' then
-      U.notify_warn('项目配置文件格式错误: ' .. config_path .. '\n' .. detail)
+      U.notify_warn('project config format error: ' .. config_path .. '\n' .. detail)
     else
-      U.notify_warn('项目配置文件格式错误: ' .. config_path)
+      U.notify_warn('project config format error: ' .. config_path)
     end
     return nil
   end
 
   -- 检查配置是否为有效表
   if type(config) ~= 'table' then
-    U.notify_warn('项目配置文件内容无效: ' .. config_path)
+    U.notify_warn('project config invalid: ' .. config_path)
     return nil
   end
 
@@ -92,7 +92,7 @@ function M.merge_project_config(main_config, project_config)
 
   -- 记录配置合并信息（用于调试）
   if vim.g.quick_c_debug then
-    U.notify_info('项目配置已合并: ' .. vim.inspect(project_config))
+    U.notify_info('project config merged: ' .. vim.inspect(project_config))
   end
 
   return merged
@@ -109,7 +109,7 @@ function M.get_current_project_config()
 
   -- 记录找到的配置文件路径（用于调试）
   if vim.g.quick_c_debug then
-    U.notify_info('找到项目配置文件: ' .. config_path)
+    U.notify_info('found project config: ' .. config_path)
   end
 
   return M.load_project_config(config_path)
@@ -123,7 +123,7 @@ function M.setup(main_config)
 
     -- 验证合并后的配置
     if type(merged_config) ~= 'table' then
-      U.notify_warn '配置合并失败，使用默认配置'
+      U.notify_warn 'project config merge failed, using default config'
       return main_config
     end
 

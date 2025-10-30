@@ -85,7 +85,7 @@ end
 local function make_run_target(target)
   local prog = choose_make()
   if not prog then
-    notify_err '未找到 make 或 mingw32-make'
+    notify_err 'cannot find make or mingw32-make'
     return
   end
   local base = vim.fn.fnamemodify(vim.fn.expand '%:p', ':h')
@@ -101,7 +101,7 @@ local function make_run_target(target)
       end
       local ui = vim.ui or {}
       if ui.input then
-        ui.input({ prompt = 'make 参数: ', default = def }, function(arg)
+        ui.input({ prompt = 'make args: ', default = def }, function(arg)
           if mkargs.remember ~= false and arg and arg ~= '' then
             vim.g.quick_c_make_last_args[key] = arg
           end
@@ -151,7 +151,7 @@ local function make_run_custom_cmd()
       run_make_in_terminal(def)
       return
     end
-    ui.input({ prompt = '运行命令: ', default = def }, function(cmd)
+    ui.input({ prompt = 'make command: ', default = def }, function(cmd)
       if not cmd or cmd == '' then
         return
       end
@@ -163,7 +163,7 @@ end
 local function telescope_make()
   local ok, mod = pcall(require, 'quick-c.telescope')
   if not ok then
-    notify_err '无法加载 quick-c.telescope 模块'
+    notify_err 'cannot load quick-c.telescope module'
     return
   end
   mod.telescope_make(
@@ -215,7 +215,7 @@ local function recompute_config()
     local now = (vim.loop and vim.loop.now and vim.loop.now()) or 0
     if p and p ~= M._last_project_config_path then
       if now >= (M._suppress_notice_until or 0) then
-        U.notify_info '已加载项目配置文件 (.quick-c.json)'
+        U.notify_info 'project config loaded (.quick-c.json)'
       end
       M._last_project_config_path = p
     end
@@ -400,7 +400,7 @@ function M.setup(opts)
         end
         schedule_recompute(100)
         vim.schedule(function()
-          vim.notify('Quick-c: 项目配置已保存，已重新加载', vim.log.levels.INFO)
+          vim.notify('Quick-c: project config reloaded', vim.log.levels.INFO)
         end)
       end
     end,

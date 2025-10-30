@@ -113,7 +113,7 @@ function T.select_or_run_in_terminal(config, is_windows, cmdline, notify_warn, n
   end
   pickers
     .new({}, {
-      prompt_title = '选择终端以发送命令',
+      prompt_title = 'quick-c: select terminal to send',
       finder = finders.new_table {
         results = entries,
         entry_maker = function(e)

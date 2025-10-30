@@ -604,7 +604,7 @@ function B.debug_run(config, notify, exe)
         -- fall through to dap.run below
         local ok, dap = pcall(require, 'dap')
         if not ok then
-          notify.err '未找到 nvim-dap'
+          notify.err 'not found nvim-dap'
           return
         end
         dap.run {

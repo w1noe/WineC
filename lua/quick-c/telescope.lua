@@ -695,7 +695,7 @@ function M.telescope_cmake(config)
         return
       end
       local entries = {}
-      table.insert(entries, { display = '[配置]', kind = 'configure' })
+      table.insert(entries, { display = '[configure]', kind = 'configure' })
       for _, t in ipairs(targets) do
         table.insert(entries, { display = t, value = t, kind = 'target' })
       end
@@ -874,9 +874,9 @@ function M.telescope_cmake(config)
                 local notify = { err = U.notify_err, warn = U.notify_warn, info = U.notify_info }
                 CM.ensure_configured_async(config, root, function(ok)
                   if ok then
-                    notify.info 'CMake 配置完成'
+                    notify.info 'CMake configured'
                   else
-                    notify.err 'CMake 配置失败'
+                    notify.err 'CMake configure failed'
                   end
                 end)
                 return

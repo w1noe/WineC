@@ -123,7 +123,7 @@ function K.setup(config, callbacks)
       if vim.fn.filereadable(latest) == 1 then
         vim.cmd('tabnew ' .. vim.fn.fnameescape(latest))
       else
-        vim.notify('没有可用的构建日志', vim.log.levels.WARN)
+        vim.notify('no build logs', vim.log.levels.WARN)
       end
     end
     map(km.logs, open_logs, 'Quick-c: Build logs (Telescope)')

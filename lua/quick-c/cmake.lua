@@ -501,7 +501,7 @@ function M.build_in_root(config, root, target, run_terminal)
       end
       local ui = vim.ui or {}
       if ui.input then
-        ui.input({ prompt = 'cmake 构建参数: ', default = def }, function(arg)
+        ui.input({ prompt = 'cmake arguments: ', default = def }, function(arg)
           if cmargs.remember ~= false and arg and arg ~= '' then
             vim.g.quick_c_cmake_last_args[key] = arg
           end
@@ -528,9 +528,9 @@ function M.configure_from_current(config, notify)
   resolve_root_async(config, base, function(root)
     M.ensure_configured_async(config, root, function(ok)
       if ok then
-        ninfo 'CMake 配置完成'
+        ninfo 'CMake configured'
       else
-        nerr 'CMake 配置失败'
+        nerr 'CMake configuration failed'
       end
     end)
   end)
