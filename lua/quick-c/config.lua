@@ -66,10 +66,12 @@ C.defaults = {
       use_telescope = true, -- 打开列表时优先使用 Telescope quickfix（如已安装）
     },
   },
-  autorun = {
-    enabled = false,
-    events = { 'BufWritePost' },
+  autosave = {
+    enabled = true,
+    debounce_ms = 1000,
+    events = { 'TextChanged', 'TextChangedI', 'InsertLeave' },
     filetypes = { 'c', 'cpp' },
+    ignore_filetypes = { 'gitcommit', 'gitrebase' },
   },
   terminal = {
     open = true,
