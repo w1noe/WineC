@@ -44,14 +44,6 @@ compile = {
 }
 ```
 
-### 运行时 runtime（仅终端直跑场景）
-```lua
-runtime = {
-  windows = { command = 'powershell', args = function(exe) return { '-NoExit', '-Command', string.format("& '%s'", exe) } end },
-  unix    = { command = nil,         args = function(exe) return { exe } end },
-}
-```
-
 ### 诊断列表 diagnostics.quickfix
 ```lua
 diagnostics = {

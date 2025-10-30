@@ -31,33 +31,6 @@ C.defaults = {
     -- 当 mode = 'use' 时，从此路径复制 compile_commands.json
     use_path = nil,
   },
-  compile_cmds = {
-    gcc = function(ft, sources, out)
-      local cc = (ft == 'c') and 'gcc' or 'g++'
-      return { cc, '-g', '-O0', '-Wall', '-Wextra', unpack(sources), '-o', out }
-    end,
-    clang = function(ft, sources, out)
-      local cc = (ft == 'c') and 'clang' or 'clang++'
-      return { cc, '-g', '-O0', '-Wall', '-Wextra', unpack(sources), '-o', out }
-    end,
-    cl = function(ft, sources, out)
-      return vim.list_extend({ 'cl', '/Zi', '/Od' }, sources, 1, #sources), { [0] = out }
-    end,
-  },
-  runtime = {
-    windows = {
-      command = 'powershell',
-      args = function(exe)
-        return { '-NoExit', '-Command', string.format("& '%s'", exe) }
-      end,
-    },
-    unix = {
-      command = nil,
-      args = function(exe)
-        return { exe }
-      end,
-    },
-  },
   diagnostics = {
     quickfix = {
       enabled = true, -- 是否收集编译输出到 quickfix

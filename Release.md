@@ -7,6 +7,7 @@
   - 监听 `TextChanged`/`TextChangedI`/`InsertLeave` 等事件，按防抖时间自动保存当前缓冲。
   - 支持按文件类型白名单（默认 `{'c','cpp'}`）与忽略名单（默认忽略 `gitcommit/gitrebase`）。
   - 仅在满足条件时保存：缓冲已修改、非只读、有文件名、非特殊 `buftype`。
+- 移除了 `compile_cmds` 和 `runtime` 配置项，这些配置在当前版本中已不再使用
 
 ### 配置
 - `autosave` 配置块（在 `setup()` 或 `.quick-c.json` 中设置）：
