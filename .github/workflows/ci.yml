@@ -79,10 +79,10 @@ jobs:
       - name: Basic commands
         shell: bash
         run: |
-          nvim --headless --version | tee -a artifacts/ci.log
+          nvim --headless --version 2>&1 | tee -a artifacts/ci.log
           nvim --headless -u NONE -n -Es \
             +"lua vim.opt.runtimepath:append(vim.fn.getcwd()); require('quick-c').setup({})" \
-            +QuickCHealth +QuickCCheck +QuickCReload +QuickCConfig +messages +qall! | tee -a artifacts/ci.log
+            +QuickCHealth +QuickCCheck +QuickCReload +QuickCConfig +messages +qall! 2>&1 | tee -a artifacts/ci.log
 
       - name: Probe setup error (diagnostic)
         shell: bash
@@ -90,7 +90,7 @@ jobs:
           set +e
           nvim --headless -u NONE -n -Es \
             +"lua local ok,err=pcall(function() vim.opt.runtimepath:append(vim.fn.getcwd()); require('quick-c').setup({}) end); if not ok then print('SETUP_ERR:'..tostring(err)) end" \
-            +messages +qall! | tee -a artifacts/ci.log
+            +messages +qall! 2>&1 | tee -a artifacts/ci.log
           echo "Probe exit code: $?" || true
 
       - name: Module load sanity
@@ -122,7 +122,7 @@ jobs:
                 end \
               end \
               if #failed > 0 then vim.cmd('cq 1') end \
-            " +qall! | tee -a artifacts/ci.log
+            " +qall! 2>&1 | tee -a artifacts/ci.log
 
       - name: Make search (no Makefile) smoke
         shell: bash
@@ -151,7 +151,7 @@ jobs:
               else \
                 error('parse_make_targets_in_cwd_async timeout'); \
               end \
-            " +qall! | tee -a artifacts/ci.log
+            " +qall! 2>&1 | tee -a artifacts/ci.log
 
       - name: Telescope quickfix fallback (no telescope)
         shell: bash
@@ -165,7 +165,7 @@ jobs:
               print('TEL_PRESENT:'..tostring(ok_t)); \
               print('QF_CALL_OK:'..tostring(ok)); \
               if not ok then print('QF_CALL_ERR:'..tostring(err)) end; \
-            " +qall! | tee -a artifacts/ci.log
+            " +qall! 2>&1 | tee -a artifacts/ci.log
 
       - name: CMake configure smoke (Linux)
         if: runner.os == 'Linux'
@@ -184,7 +184,7 @@ jobs:
           EOF
           nvim --headless -u NONE -n -Es \
             +"lua vim.opt.runtimepath:append(vim.fn.getcwd()); vim.cmd('lcd tests/smoke'); require('quick-c').setup({})" \
-            +QuickCCMakeConfigure +qall! | tee -a artifacts/ci.log
+            +QuickCCMakeConfigure +qall! 2>&1 | tee -a artifacts/ci.log
 
       - name: Picker build (no-interaction) smoke (Linux)
         if: runner.os == 'Linux'
@@ -207,7 +207,7 @@ jobs:
               pcall(function() tel.telescope_make(cfg, cwd_resolve, parse_targets, noop, choose_make, shell_quote_path, run_make_in_terminal) end); \
               -- QuickCCMake picker build using real cmake module (should return even without telescope) \
               pcall(function() tel.telescope_cmake(cfg) end); \
-            " +qall! | tee -a artifacts/ci.log
+            " +qall! 2>&1 | tee -a artifacts/ci.log
 
       - name: CMake list targets (read-only, no telescope) (Linux)
         if: runner.os == 'Linux'
@@ -228,7 +228,7 @@ jobs:
               CM.list_targets_async(qc._config, root, function(t) list = t; done2 = true end); \
               assert(vim.wait(5000, function() return done2 end) ~= 0, 'list_targets_async timeout'); \
               local n = (list and #list) or 0; print('CMAKE_TARGETS_SZ:'..tostring(n)); \
-            " +qall! | tee -a artifacts/ci.log
+            " +qall! 2>&1 | tee -a artifacts/ci.log
 
       - name: Picker build (no-interaction) smoke (macOS)
         if: runner.os == 'macOS'
@@ -248,7 +248,7 @@ jobs:
               local function run_make_in_terminal(cmd) end \
               pcall(function() tel.telescope_make(cfg, cwd_resolve, parse_targets, noop, choose_make, shell_quote_path, run_make_in_terminal) end); \
               pcall(function() tel.telescope_cmake(cfg) end); \
-            " +qall! | tee -a artifacts/ci.log
+            " +qall! 2>&1 | tee -a artifacts/ci.log
 
       - name: CMake list targets (read-only, no telescope) (macOS)
         if: runner.os == 'macOS'
@@ -330,9 +330,10 @@ jobs:
               CM.list_targets_async(qc._config, root, function(t) list = t; done2 = true end); \
               assert(vim.wait(5000, function() return done2 end) ~= 0, 'list_targets_async timeout'); \
               local n = (list and #list) or 0; print('CMAKE_TARGETS_SZ:'..tostring(n)); \
-            " +qall! | tee -a artifacts/ci.log
+            " +qall! 2>&1 | tee -a artifacts/ci.log
 
       - name: Upload CI logs
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ci-logs-${{ matrix.os }}-${{ matrix.neovim }}
