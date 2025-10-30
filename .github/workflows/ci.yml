@@ -75,14 +75,18 @@ jobs:
         shell: bash
         run: |
           rm -rf artifacts && mkdir -p artifacts
+          : > artifacts/status.txt
 
       - name: Basic commands
         shell: bash
         run: |
+          set +e
           nvim --headless --version 2>&1 | tee -a artifacts/ci.log
+          echo "BASIC_VERSION:$?" >> artifacts/status.txt
           nvim --headless -u NONE -n -Es \
             +"lua vim.opt.runtimepath:append(vim.fn.getcwd()); require('quick-c').setup({})" \
             +QuickCHealth +QuickCCheck +QuickCReload +QuickCConfig +messages +qall! 2>&1 | tee -a artifacts/ci.log
+          echo "BASIC_CMDS:$?" >> artifacts/status.txt
 
       - name: Probe setup error (diagnostic)
         shell: bash
@@ -96,7 +100,7 @@ jobs:
       - name: Module load sanity
         shell: bash
         run: |
-          set -e
+          set +e
           nvim --headless -u NONE -n -Es \
             +"lua \
               vim.opt.runtimepath:append(vim.fn.getcwd()); \
@@ -123,11 +127,12 @@ jobs:
               end \
               if #failed > 0 then vim.cmd('cq 1') end \
             " +qall! 2>&1 | tee -a artifacts/ci.log
+          echo "MODULE_LOAD:$?" >> artifacts/status.txt
 
       - name: Make search (no Makefile) smoke
         shell: bash
         run: |
-          set -e
+          set +e
           rm -rf tests/nomake && mkdir -p tests/nomake/sub
           nvim --headless -u NONE -n -Es \
             +"lua \
@@ -152,11 +157,12 @@ jobs:
                 error('parse_make_targets_in_cwd_async timeout'); \
               end \
             " +qall! 2>&1 | tee -a artifacts/ci.log
+          echo "MAKE_NOMAKE:$?" >> artifacts/status.txt
 
       - name: Telescope quickfix fallback (no telescope)
         shell: bash
         run: |
-          set -e
+          set +e
           nvim --headless -u NONE -n -Es \
             +"lua \
               vim.opt.runtimepath:append(vim.fn.getcwd()); \
@@ -166,12 +172,13 @@ jobs:
               print('QF_CALL_OK:'..tostring(ok)); \
               if not ok then print('QF_CALL_ERR:'..tostring(err)) end; \
             " +qall! 2>&1 | tee -a artifacts/ci.log
+          echo "QF_FALLBACK:$?" >> artifacts/status.txt
 
       - name: CMake configure smoke (Linux)
         if: runner.os == 'Linux'
         shell: bash
         run: |
-          set -e
+          set +e
           mkdir -p tests/smoke
           cat > tests/smoke/CMakeLists.txt << 'EOF'
           cmake_minimum_required(VERSION 3.10)
@@ -185,12 +192,13 @@ jobs:
           nvim --headless -u NONE -n -Es \
             +"lua vim.opt.runtimepath:append(vim.fn.getcwd()); vim.cmd('lcd tests/smoke'); require('quick-c').setup({})" \
             +QuickCCMakeConfigure +qall! 2>&1 | tee -a artifacts/ci.log
+          echo "CMAKE_CONFIGURE_LINUX:$?" >> artifacts/status.txt
 
       - name: Picker build (no-interaction) smoke (Linux)
         if: runner.os == 'Linux'
         shell: bash
         run: |
-          set -e
+          set +e
           nvim --headless -u NONE -n -Es \
             +"lua \
               vim.opt.runtimepath:append(vim.fn.getcwd()); \
@@ -208,12 +216,13 @@ jobs:
               -- QuickCCMake picker build using real cmake module (should return even without telescope) \
               pcall(function() tel.telescope_cmake(cfg) end); \
             " +qall! 2>&1 | tee -a artifacts/ci.log
+          echo "PICKER_LINUX:$?" >> artifacts/status.txt
 
       - name: CMake list targets (read-only, no telescope) (Linux)
         if: runner.os == 'Linux'
         shell: bash
         run: |
-          set -e
+          set +e
           nvim --headless -u NONE -n -Es \
             +"lua \
               vim.opt.runtimepath:append(vim.fn.getcwd()); \
@@ -229,12 +238,13 @@ jobs:
               assert(vim.wait(12000, function() return done2 end) ~= 0, 'list_targets_async timeout'); \
               local n = (list and #list) or 0; print('CMAKE_TARGETS_SZ:'..tostring(n)); \
             " +qall! 2>&1 | tee -a artifacts/ci.log
+          echo "CMAKE_LIST_LINUX:$?" >> artifacts/status.txt
 
       - name: Picker build (no-interaction) smoke (macOS)
         if: runner.os == 'macOS'
         shell: bash
         run: |
-          set -e
+          set +e
           nvim --headless -u NONE -n -Es \
             +"lua \
               vim.opt.runtimepath:append(vim.fn.getcwd()); \
@@ -249,12 +259,13 @@ jobs:
               pcall(function() tel.telescope_make(cfg, cwd_resolve, parse_targets, noop, choose_make, shell_quote_path, run_make_in_terminal) end); \
               pcall(function() tel.telescope_cmake(cfg) end); \
             " +qall! 2>&1 | tee -a artifacts/ci.log
+          echo "PICKER_MAC:$?" >> artifacts/status.txt
 
       - name: CMake list targets (read-only, no telescope) (macOS)
         if: runner.os == 'macOS'
         shell: bash
         run: |
-          set -e
+          set +e
           mkdir -p tests/smoke
           cat > tests/smoke/CMakeLists.txt << 'EOF'
           cmake_minimum_required(VERSION 3.10)
@@ -280,12 +291,13 @@ jobs:
               assert(vim.wait(12000, function() return done2 end) ~= 0, 'list_targets_async timeout'); \
               local n = (list and #list) or 0; print('CMAKE_TARGETS_SZ:'..tostring(n)); \
             " +qall! 2>&1 | tee -a artifacts/ci.log
+          echo "CMAKE_LIST_MAC:$?" >> artifacts/status.txt
 
       - name: Picker build (no-interaction) smoke (Windows)
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          set -e
+          set +e
           nvim --headless -u NONE -n -Es \
             +"lua \
               vim.opt.runtimepath:append(vim.fn.getcwd()); \
@@ -300,12 +312,13 @@ jobs:
               pcall(function() tel.telescope_make(cfg, cwd_resolve, parse_targets, noop, choose_make, shell_quote_path, run_make_in_terminal) end); \
               pcall(function() tel.telescope_cmake(cfg) end); \
             " +qall! 2>&1 | tee -a artifacts/ci.log
+          echo "PICKER_WIN:$?" >> artifacts/status.txt
 
       - name: CMake list targets (read-only, no telescope) (Windows)
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          set -e
+          set +e
           mkdir -p tests/smoke
           cat > tests/smoke/CMakeLists.txt << 'EOF'
           cmake_minimum_required(VERSION 3.10)
@@ -331,6 +344,26 @@ jobs:
               assert(vim.wait(12000, function() return done2 end) ~= 0, 'list_targets_async timeout'); \
               local n = (list and #list) or 0; print('CMAKE_TARGETS_SZ:'..tostring(n)); \
             " +qall! 2>&1 | tee -a artifacts/ci.log
+          echo "CMAKE_LIST_WIN:$?" >> artifacts/status.txt
+
+      - name: Summarize test statuses
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          echo "==== Test Status Summary ====" | tee -a artifacts/ci.log
+          cat artifacts/status.txt | tee -a artifacts/ci.log
+          bad=0
+          while IFS=':' read -r name code; do
+            if [ -n "$code" ] && [ "$code" != "0" ]; then
+              echo "FAILED: $name => $code" | tee -a artifacts/ci.log
+              bad=1
+            fi
+          done < artifacts/status.txt
+          if [ $bad -ne 0 ]; then
+            echo "One or more tests failed." | tee -a artifacts/ci.log
+            exit 1
+          fi
 
       - name: Upload CI logs
         if: always()
