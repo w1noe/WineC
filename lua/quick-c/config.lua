@@ -66,14 +66,14 @@ C.defaults = {
     focus_on_run = true,
     open_if_closed = true,
   },
-  debug = {
+  debug = { -- 搜索可执行文件的配置
     search = {
       up = 2,
       down = 2,
       ignore_dirs = { '.git', 'node_modules', '.cache' },
-      dirs = nil,
+      dirs = nil, -- 指定搜索目录，为空时使用当前文件所在目录
     },
-    concurrency = 8,
+    concurrency = 8, -- 并发工作者数
   },
   make = {
     enabled = true,

@@ -1,6 +1,7 @@
 local T = {}
 
 function T.run_in_native_terminal(config, is_windows, cmd)
+  local prev = vim.api.nvim_get_current_win()
   if config.terminal.open then
     vim.cmd 'botright split | terminal'
     vim.cmd(string.format('resize %d', config.terminal.height or 12))
@@ -11,6 +12,7 @@ function T.run_in_native_terminal(config, is_windows, cmd)
   if not chan then
     return false
   end
+  pcall(vim.api.nvim_set_current_win, prev)
   vim.defer_fn(function()
     vim.fn.chansend(chan, cmd .. (is_windows() and '\r' or '\n'))
   end, 100)
@@ -27,9 +29,11 @@ function T.run_in_betterterm(config, is_windows, cmd, notify_warn, notify_err)
   local delay = cfg.send_delay or 200
   local focus = (cfg.focus_on_run ~= false)
   local open_first = (cfg.open_if_closed ~= false)
+  local prev = vim.api.nvim_get_current_win()
   if open_first or focus then
     pcall(betterTerm.open, idx)
   end
+  pcall(vim.api.nvim_set_current_win, prev)
   vim.defer_fn(function()
     local ok_send, err = pcall(betterTerm.send, cmd .. (is_windows() and '\r' or '\n'), idx)
     if not ok_send then
@@ -86,9 +90,6 @@ end
 
 function T.send_to_builtin_terminal(is_windows, job, cmd, opts)
   opts = opts or {}
-  if opts.bufnr and vim.api.nvim_buf_is_valid(opts.bufnr) then
-    pcall(open_builtin_terminal_window, opts.config or {}, opts.bufnr)
-  end
   local nl = is_windows() and '\r' or '\n'
   return pcall(vim.fn.chansend, job, cmd .. nl)
 end
@@ -114,6 +115,7 @@ function T.select_or_run_in_terminal(config, is_windows, cmdline, notify_warn, n
   pickers
     .new({}, {
       prompt_title = 'quick-c: select terminal to send',
+      initial_mode = 'normal',
       finder = finders.new_table {
         results = entries,
         entry_maker = function(e)
