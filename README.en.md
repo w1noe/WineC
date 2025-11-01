@@ -509,6 +509,12 @@ When multiple results are found, Telescope shows paths relative to `:pwd` for cl
   - If `QuickCRun/QuickCDebug` cannot find the program: verify `outdir` or add your artifact directory to `debug.search.dirs` (e.g., `./build/bin`).
 
 
+## 🤝 Contributing
+
+Contributions are welcome! Please read:
+
+- Contribution Guide: [markdown/en/CONTRIBUTING_GUIDE.en.md](markdown/en/CONTRIBUTING_GUIDE.en.md)
+
 ## 📋 Release notes
 
 See [Release.md](Release.md)
