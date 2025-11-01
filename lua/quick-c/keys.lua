@@ -74,7 +74,12 @@ function K.setup(config, callbacks)
     map(km.debug, callbacks.debug, 'Quick-c: Debug current C/C++ exe')
   end
   if not disabled(km.make) then
-    map(km.make, callbacks.make, 'Quick-c: Make targets (Telescope)')
+    local function scheduled_make()
+      vim.schedule(function()
+        callbacks.make()
+      end)
+    end
+    map(km.make, scheduled_make, 'Quick-c: Make targets (Telescope)')
   end
   if not disabled(km.cmake) and callbacks.cmake then
     map(km.cmake, callbacks.cmake, 'Quick-c: CMake targets (Telescope)')
