@@ -107,7 +107,9 @@ function T.select_or_run_in_terminal(config, is_windows, cmdline, notify_warn, n
   local mode = ((config.make or {}).telescope or {}).choose_terminal or 'auto'
   local open_terms = T.list_open_builtin_terminals()
   local ok_t = pcall(require, 'telescope')
-  if mode == 'never' or not ok_t or (mode == 'auto' and #open_terms == 0) then
+  -- Only open picker when explicitly requested (always) or when there are 2+ terminals.
+  -- In auto mode with 0 or 1 terminals, run default strategy directly to avoid key leakage.
+  if mode == 'never' or not ok_t or (mode == 'auto' and #open_terms <= 1) then
     return T.run_make_in_terminal(config, is_windows, cmdline, notify_warn, notify_err)
   end
   local pickers = require 'telescope.pickers'
@@ -120,7 +122,7 @@ function T.select_or_run_in_terminal(config, is_windows, cmdline, notify_warn, n
     local disp = string.format('buf #%d | %s', it.bufnr, (it.name ~= '' and it.name or 'terminal'))
     table.insert(entries, { display = disp, kind = 'builtin', job = it.job, bufnr = it.bufnr })
   end
-  vim.schedule(function()
+  vim.defer_fn(function()
     pickers
       .new({}, {
         prompt_title = 'quick-c: select terminal to send',
@@ -135,6 +137,9 @@ function T.select_or_run_in_terminal(config, is_windows, cmdline, notify_warn, n
         attach_mappings = function(_, map)
           local actions = require 'telescope.actions'
           local action_state = require 'telescope.actions.state'
+          local function swallow_A()
+            return true
+          end
           local function choose(bufnr)
             local entry = action_state.get_selected_entry()
             actions.close(bufnr)
@@ -180,11 +185,13 @@ function T.select_or_run_in_terminal(config, is_windows, cmdline, notify_warn, n
           end
           map('i', '<CR>', choose)
           map('n', '<CR>', choose)
+          map('n', 'A', swallow_A)
+          map('i', 'A', swallow_A)
           return true
         end,
       })
       :find()
-  end)
+  end, 120)
 end
 
 return T
