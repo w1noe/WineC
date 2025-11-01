@@ -1,6 +1,8 @@
 local T = {}
 
-function T.run_in_native_terminal(config, is_windows, cmd)
+function T.run_in_native_terminal(config, is_windows, cmd, opts)
+  opts = opts or {}
+  local focus = (opts.focus ~= false)
   local prev = vim.api.nvim_get_current_win()
   if config.terminal.open then
     vim.cmd 'botright split | terminal'
@@ -12,14 +14,16 @@ function T.run_in_native_terminal(config, is_windows, cmd)
   if not chan then
     return false
   end
-  pcall(vim.api.nvim_set_current_win, prev)
+  if not focus then
+    pcall(vim.api.nvim_set_current_win, prev)
+  end
   vim.defer_fn(function()
     vim.fn.chansend(chan, cmd .. (is_windows() and '\r' or '\n'))
   end, 100)
   return true
 end
 
-function T.run_in_betterterm(config, is_windows, cmd, notify_warn, notify_err)
+function T.run_in_betterterm(config, is_windows, cmd, notify_warn, notify_err, opts)
   local ok, betterTerm = pcall(require, 'betterTerm')
   if not ok or config.betterterm.enabled == false then
     return false
@@ -29,16 +33,20 @@ function T.run_in_betterterm(config, is_windows, cmd, notify_warn, notify_err)
   local delay = cfg.send_delay or 200
   local focus = (cfg.focus_on_run ~= false)
   local open_first = (cfg.open_if_closed ~= false)
+  opts = opts or {}
+  local want_focus = (opts.focus ~= false)
   local prev = vim.api.nvim_get_current_win()
   if open_first or focus then
     pcall(betterTerm.open, idx)
   end
-  pcall(vim.api.nvim_set_current_win, prev)
+  if not want_focus then
+    pcall(vim.api.nvim_set_current_win, prev)
+  end
   vim.defer_fn(function()
     local ok_send, err = pcall(betterTerm.send, cmd .. (is_windows() and '\r' or '\n'), idx)
     if not ok_send then
       notify_warn('Failed to send to betterTerm, using native terminal: ' .. tostring(err))
-      if not T.run_in_native_terminal(config, is_windows, cmd) then
+      if not T.run_in_native_terminal(config, is_windows, cmd, { focus = want_focus }) then
         notify_err 'Failed to open native terminal'
       end
       return
@@ -48,8 +56,8 @@ function T.run_in_betterterm(config, is_windows, cmd, notify_warn, notify_err)
 end
 
 function T.run_make_in_terminal(config, is_windows, cmdline, notify_warn, notify_err)
-  if not T.run_in_betterterm(config, is_windows, cmdline, notify_warn, notify_err) then
-    if not T.run_in_native_terminal(config, is_windows, cmdline) then
+  if not T.run_in_betterterm(config, is_windows, cmdline, notify_warn, notify_err, { focus = false }) then
+    if not T.run_in_native_terminal(config, is_windows, cmdline, { focus = false }) then
       notify_err 'Unable to run make: cannot open terminal'
     end
   end
@@ -112,40 +120,71 @@ function T.select_or_run_in_terminal(config, is_windows, cmdline, notify_warn, n
     local disp = string.format('buf #%d | %s', it.bufnr, (it.name ~= '' and it.name or 'terminal'))
     table.insert(entries, { display = disp, kind = 'builtin', job = it.job, bufnr = it.bufnr })
   end
-  pickers
-    .new({}, {
-      prompt_title = 'quick-c: select terminal to send',
-      initial_mode = 'normal',
-      finder = finders.new_table {
-        results = entries,
-        entry_maker = function(e)
-          return { value = e, display = e.display, ordinal = e.display }
-        end,
-      },
-      sorter = conf.generic_sorter {},
-      attach_mappings = function(_, map)
-        local actions = require 'telescope.actions'
-        local action_state = require 'telescope.actions.state'
-        local function choose(bufnr)
-          local entry = action_state.get_selected_entry()
-          actions.close(bufnr)
-          local v = entry.value
-          if v.kind == 'default' then
-            T.run_make_in_terminal(config, is_windows, cmdline, notify_warn, notify_err)
-          else
-            local ok = T.send_to_builtin_terminal(is_windows, v.job, cmdline, { bufnr = v.bufnr, config = config })
-            if not ok then
-              notify_warn 'Failed to send to selected terminal, using default strategy'
+  vim.schedule(function()
+    pickers
+      .new({}, {
+        prompt_title = 'quick-c: select terminal to send',
+        initial_mode = 'normal',
+        finder = finders.new_table {
+          results = entries,
+          entry_maker = function(e)
+            return { value = e, display = e.display, ordinal = e.display }
+          end,
+        },
+        sorter = conf.generic_sorter {},
+        attach_mappings = function(_, map)
+          local actions = require 'telescope.actions'
+          local action_state = require 'telescope.actions.state'
+          local function choose(bufnr)
+            local entry = action_state.get_selected_entry()
+            actions.close(bufnr)
+            local v = entry.value
+            if v.kind == 'default' then
               T.run_make_in_terminal(config, is_windows, cmdline, notify_warn, notify_err)
+              do
+                local ok_bt, betterTerm = pcall(require, 'betterTerm')
+                if ok_bt and (config.betterterm and config.betterterm.enabled ~= false) then
+                  local idx = (config.betterterm and config.betterterm.index) or 0
+                  local focus_on_run = (config.betterterm and config.betterterm.focus_on_run) ~= false
+                  if focus_on_run then
+                    vim.defer_fn(function()
+                      pcall(betterTerm.open, idx)
+                    end, 120)
+                  end
+                end
+              end
+            else
+              local ok = T.send_to_builtin_terminal(is_windows, v.job, cmdline, { bufnr = v.bufnr, config = config })
+              if not ok then
+                notify_warn 'Failed to send to selected terminal, using default strategy'
+                T.run_make_in_terminal(config, is_windows, cmdline, notify_warn, notify_err)
+                do
+                  local ok_bt, betterTerm = pcall(require, 'betterTerm')
+                  if ok_bt and (config.betterterm and config.betterterm.enabled ~= false) then
+                    local idx = (config.betterterm and config.betterterm.index) or 0
+                    local focus_on_run = (config.betterterm and config.betterterm.focus_on_run) ~= false
+                    if focus_on_run then
+                      vim.defer_fn(function()
+                        pcall(betterTerm.open, idx)
+                      end, 120)
+                    end
+                  end
+                end
+              end
+              if ok then
+                vim.defer_fn(function()
+                  pcall(open_builtin_terminal_window, config, v.bufnr)
+                end, 120)
+              end
             end
           end
-        end
-        map('i', '<CR>', choose)
-        map('n', '<CR>', choose)
-        return true
-      end,
-    })
-    :find()
+          map('i', '<CR>', choose)
+          map('n', '<CR>', choose)
+          return true
+        end,
+      })
+      :find()
+  end)
 end
 
 return T
