@@ -1272,3 +1272,5 @@ function M.telescope_make_stream(config)
     })
   end)
 end
+
+return M
