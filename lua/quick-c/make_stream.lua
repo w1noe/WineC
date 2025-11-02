@@ -35,7 +35,7 @@ local function choose_probe_make(pref_prog)
 end
 
 local function parse_line(l, seen, phony)
-  local plist = l:match('^%%.PHONY%s*:%s*(.+)')
+  local plist = l:match('^%.PHONY%s*:%s*(.+)')
   if plist then
     for name in plist:gmatch('%S+') do phony[name] = true end
     return nil

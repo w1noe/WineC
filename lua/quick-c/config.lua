@@ -18,9 +18,9 @@ C.defaults = {
     windows = { c = { 'gcc', 'cl' }, cpp = { 'g++', 'cl' } },
     unix = { c = { 'gcc', 'clang' }, cpp = { 'g++', 'clang++' } },
   },
-  compile = {
-    prefer = { c = nil, cpp = nil },
-    prefer_force = false,
+  compile = { -- 自定义编译器
+    prefer = { c = nil, cpp = nil }, -- 例如：i386-elf-gcc
+    prefer_force = false, -- 是否强制使用优先级
   },
   -- compile_commands.json 相关配置
   compile_commands = {
@@ -49,11 +49,11 @@ C.defaults = {
     },
   },
   autosave = {
-    enabled = true,
-    debounce_ms = 1000,
-    events = { 'TextChanged', 'TextChangedI', 'InsertLeave' },
-    filetypes = { 'c', 'cpp' },
-    ignore_filetypes = { 'gitcommit', 'gitrebase' },
+    enabled = true, -- 自动保存
+    debounce_ms = 1000, -- 节流时间（ms）
+    events = { 'TextChanged', 'TextChangedI', 'InsertLeave' }, -- 事件
+    filetypes = { 'c', 'cpp' }, -- 文件类型
+    ignore_filetypes = { 'gitcommit', 'gitrebase' }, -- 忽略的文件类型
   },
   terminal = {
     open = true,
@@ -61,12 +61,12 @@ C.defaults = {
   },
   betterterm = {
     enabled = true,
-    index = 0,
-    send_delay = 200,
-    focus_on_run = true,
-    open_if_closed = true,
+    index = 0, -- 默认打开的终端索引
+    send_delay = 200, -- 发送命令的延迟（ms）
+    focus_on_run = true, -- 运行时自动聚焦
+    open_if_closed = true, -- 如果终端关闭则自动打开
   },
-  debug = { -- 搜索可执行文件的配置
+  debug = { -- 搜索可执行文件
     search = {
       up = 2,
       down = 2,
@@ -123,16 +123,16 @@ C.defaults = {
     search = { up = 2, down = 3, ignore_dirs = { '.git', 'node_modules', '.cache' } },
     telescope = {
       prompt_title = 'Quick-c CMake Targets',
-      preview = true,
-      max_preview_bytes = 200 * 1024,
-      max_preview_lines = 2000,
-      set_filetype = false,
-      choose_terminal = 'auto',
+      preview = true, -- 是否显示预览
+      max_preview_bytes = 200 * 1024, -- 预览最多读取的字节数
+      max_preview_lines = 2000, -- 预览最多显示的行数
+      set_filetype = false, -- 预览 buffer 是否设置 filetype = 'cmake'
+      choose_terminal = 'auto', -- 发送命令到终端时的选择行为: 'auto' | 'always' | 'never'
     },
     args = {
       prompt = true, -- 选择目标后是否弹出输入框追加构建参数（传递给构建工具，如 -j4）
-      default = '',
-      remember = true,
+      default = '', -- 默认追加参数
+      remember = true, -- 记住每个 cwd 最近一次输入，作为下次默认值
     },
     configure = {
       extra = {}, -- 额外传递给 cmake -S/-B 的参数，如 { "-DCMAKE_BUILD_TYPE=Debug" }
