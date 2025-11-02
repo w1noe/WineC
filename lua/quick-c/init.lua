@@ -166,15 +166,72 @@ local function telescope_make()
     notify_err 'cannot load quick-c.telescope module'
     return
   end
-  mod.telescope_make(
-    M.config,
-    resolve_make_cwd_async,
-    parse_make_targets_in_cwd_async,
-    make_run_in_cwd,
-    choose_make,
-    shell_quote_path,
-    run_make_in_terminal
-  )
+  -- If streaming explicitly enabled, use streaming picker directly
+  local streaming = ((M.config.make and M.config.make.streaming and M.config.make.streaming.enabled) ~= false)
+  if streaming then
+    mod.telescope_make_stream(M.config)
+    return
+  end
+  -- Auto-detect: lightweight streaming probe to identify huge outputs, then switch
+  local base = vim.fn.fnamemodify(vim.fn.expand '%:p', ':h')
+  resolve_make_cwd_async(base, function(cwd)
+    local MK = require 'quick-c.make'
+    local count = 0
+    local switched = false
+    local handle
+    local timeout_ms = 800
+    local threshold = 400 -- consider large if we quickly see many targets
+    handle = MK.parse_make_targets_stream_async(M.config, cwd, function(ev)
+      if switched then return end
+      if ev.kind == 'batch' then
+        count = count + (#(ev.targets or {}))
+        if count >= threshold then
+          switched = true
+          if handle and handle.cancel then pcall(handle.cancel) end
+          M.config.make = M.config.make or {}
+          M.config.make.streaming = M.config.make.streaming or {}
+          M.config.make.streaming.enabled = true
+          notify_info('Quick-c: Detected large make output, switching to streaming view...')
+          require('quick-c.telescope').telescope_make_stream(M.config)
+        end
+      elseif ev.kind == 'done' then
+        -- small/normal project: use legacy non-streaming picker for simplicity
+        if handle and handle.cancel then pcall(handle.cancel) end
+        require('quick-c.telescope').telescope_make(
+          M.config,
+          resolve_make_cwd_async,
+          parse_make_targets_in_cwd_async,
+          make_run_in_cwd,
+          choose_make,
+          shell_quote_path,
+          run_make_in_terminal
+        )
+      end
+    end)
+    -- Failsafe timer
+    vim.defer_fn(function()
+      if switched then return end
+      switched = true
+      if handle and handle.cancel then pcall(handle.cancel) end
+      if count >= threshold then
+        M.config.make = M.config.make or {}
+        M.config.make.streaming = M.config.make.streaming or {}
+        M.config.make.streaming.enabled = true
+        notify_info('Quick-c: Slow make target discovery detected, using streaming view...')
+        require('quick-c.telescope').telescope_make_stream(M.config)
+      else
+        require('quick-c.telescope').telescope_make(
+          M.config,
+          resolve_make_cwd_async,
+          parse_make_targets_in_cwd_async,
+          make_run_in_cwd,
+          choose_make,
+          shell_quote_path,
+          run_make_in_terminal
+        )
+      end
+    end, timeout_ms)
+  end)
 end
 
 local function build(...)
@@ -296,6 +353,14 @@ function M.setup(opts)
   end, {})
   vim.api.nvim_create_user_command('QuickCMake', function()
     telescope_make()
+  end, {})
+  vim.api.nvim_create_user_command('QuickCMakeStream', function()
+    local ok, mod = pcall(require, 'quick-c.telescope')
+    if not ok then
+      notify_err 'cannot load quick-c.telescope module'
+      return
+    end
+    mod.telescope_make_stream(M.config)
   end, {})
   vim.api.nvim_create_user_command('QuickCMakeRun', function(opts)
     local target = table.concat(opts.fargs or {}, ' ')

@@ -1026,3 +1026,252 @@ function M.telescope_quickc_sources(config)
 end
 
 return M
+
+-- Streaming Make targets picker: incremental updates, <C-p> toggle PHONY-only, <C-c> cancel
+function M.telescope_make_stream(config)
+  local ok_t = pcall(require, 'telescope')
+  if not ok_t then
+    vim.notify('telescope.nvim not found', vim.log.levels.ERROR)
+    return
+  end
+  local MK = require 'quick-c.make'
+  local MSR = require 'quick-c.make_search'
+  local TASK = require 'quick-c.task'
+  local pickers = require 'telescope.pickers'
+  local finders = require 'telescope.finders'
+  local conf = require('telescope.config').values
+  local base = vim.fn.fnamemodify(vim.fn.expand '%:p', ':h')
+  local telcfg = (config.make and config.make.telescope) or {}
+  local phony_only = false
+  local seen = {}
+  local all_targets = {}
+  local phony_set = {}
+  local handle = nil
+
+  local function build_entries()
+    local entries = { { display = '[Custom args...]', kind = 'args' } }
+    local list
+    if (config.make and config.make.targets and config.make.targets.prioritize_phony) ~= false then
+      local a, b = {}, {}
+      for _, t in ipairs(all_targets) do
+        if phony_set[t] then table.insert(a, t) else table.insert(b, t) end
+      end
+      list = {}
+      if phony_only then
+        list = a
+      else
+        for _, t in ipairs(a) do table.insert(list, t) end
+        for _, t in ipairs(b) do table.insert(list, t) end
+      end
+    else
+      list = all_targets
+    end
+    for _, t in ipairs(list) do
+      local disp = phony_set[t] and (t .. ' [PHONY]') or t
+      table.insert(entries, { display = disp, value = t, kind = 'target', phony = phony_set[t] or false })
+    end
+    return entries
+  end
+
+  local function open_picker(cwd)
+    local title = (config.make and config.make.telescope and config.make.telescope.prompt_title) or 'Make Targets'
+    local picker
+    picker = pickers.new({}, {
+      prompt_title = title .. ' (' .. cwd .. ')',
+      finder = finders.new_table {
+        results = { { display = '[Loading targets…]', kind = 'loading' } },
+        entry_maker = function(e)
+          return { value = e.value, display = e.display, ordinal = e.display, kind = e.kind, phony = e.phony }
+        end,
+      },
+      sorter = conf.generic_sorter {},
+      attach_mappings = function(bufnr, map)
+        local actions = require 'telescope.actions'
+        local action_state = require 'telescope.actions.state'
+        local function run_with_args(target)
+          local mkargs = (config.make and config.make.args) or {}
+          local def = mkargs.default or ''
+          if mkargs.remember ~= false then
+            vim.g.quick_c_make_last_args = vim.g.quick_c_make_last_args or {}
+            def = vim.g.quick_c_make_last_args[cwd] or def
+          end
+          local ui = vim.ui or {}
+          if not ui.input then
+            require('quick-c.make').make_run_in_cwd(config, cwd, target, function(cmd)
+              return require('quick-c.terminal').select_or_run_in_terminal(config, require('quick-c.util').is_windows, cmd, function(msg) vim.notify(msg, vim.log.levels.WARN) end, function(msg) vim.notify(msg, vim.log.levels.ERROR) end)
+            end)
+            return
+          end
+          ui.input({ prompt = 'make args: ', default = def }, function(arg)
+            if arg and arg ~= '' then
+              if mkargs.remember ~= false then vim.g.quick_c_make_last_args[cwd] = arg end
+              local prog = require('quick-c.make').choose_make(config)
+              if not prog then
+                vim.notify('make or mingw32-make not found', vim.log.levels.ERROR)
+                return
+              end
+              local no_dash_C = (config.make and config.make.no_dash_C) == true
+              local cmd
+              if no_dash_C then cmd = string.format('%s %s %s', prog, target or '', arg) else cmd = string.format('%s -C %s %s %s', prog, require('quick-c.util').shell_quote_path(cwd), target or '', arg) end
+              require('quick-c.terminal').select_or_run_in_terminal(config, require('quick-c.util').is_windows, cmd, function(msg) vim.notify(msg, vim.log.levels.WARN) end, function(msg) vim.notify(msg, vim.log.levels.ERROR) end)
+            else
+              require('quick-c.make').make_run_in_cwd(config, cwd, target, function(cmd)
+                return require('quick-c.terminal').select_or_run_in_terminal(config, require('quick-c.util').is_windows, cmd, function(msg) vim.notify(msg, vim.log.levels.WARN) end, function(msg) vim.notify(msg, vim.log.levels.ERROR) end)
+              end)
+            end
+          end)
+        end
+        local function choose(pbuf)
+          local entry = action_state.get_selected_entry()
+          actions.close(pbuf)
+          if not entry then return end
+          if entry.kind == 'args' then
+            local mkargs = (config.make and config.make.args) or {}
+            local def = mkargs.default or ''
+            if mkargs.remember ~= false then vim.g.quick_c_make_last_args = vim.g.quick_c_make_last_args or {}; def = vim.g.quick_c_make_last_args[cwd] or def end
+            local ui = vim.ui or {}
+            if not ui.input then return end
+            ui.input({ prompt = 'make args: ', default = def }, function(arg)
+              if not arg or arg == '' then return end
+              if mkargs.remember ~= false then vim.g.quick_c_make_last_args[cwd] = arg end
+              local prog = require('quick-c.make').choose_make(config)
+              if not prog then vim.notify('make or mingw32-make not found', vim.log.levels.ERROR); return end
+              local no_dash_C = (config.make and config.make.no_dash_C) == true
+              local cmd
+              if no_dash_C then cmd = string.format('%s %s', prog, arg) else cmd = string.format('%s -C %s %s', prog, require('quick-c.util').shell_quote_path(cwd), arg) end
+              require('quick-c.terminal').select_or_run_in_terminal(config, require('quick-c.util').is_windows, cmd, function(msg) vim.notify(msg, vim.log.levels.WARN) end, function(msg) vim.notify(msg, vim.log.levels.ERROR) end)
+            end)
+            return
+          end
+          run_with_args(entry.value)
+        end
+        map('i', '<CR>', choose)
+        map('n', '<CR>', choose)
+        local function toggle_phony_only()
+          phony_only = not phony_only
+          local picker_obj = action_state.get_current_picker(bufnr)
+          picker_obj:refresh(
+            finders.new_table {
+              results = build_entries(),
+              entry_maker = function(e)
+                return { value = e.value, display = e.display, ordinal = e.display, kind = e.kind, phony = e.phony }
+              end,
+            },
+            { reset_prompt = false }
+          )
+        end
+        map('i', '<C-p>', toggle_phony_only)
+        map('n', '<C-p>', toggle_phony_only)
+        local function cancel_scan()
+          TASK.cancel_current()
+          vim.notify('Quick-c: make scan canceled', vim.log.levels.WARN)
+        end
+        map('i', '<C-c>', cancel_scan)
+        map('n', '<C-c>', cancel_scan)
+        -- Auto cancel when picker buffer closes
+        if bufnr and bufnr > 0 then
+          pcall(vim.api.nvim_create_autocmd, 'BufWipeout', {
+            buffer = bufnr,
+            callback = function()
+              TASK.cancel_current()
+              vim.schedule(function()
+                vim.notify('Quick-c: closed picker, stopped make scan', vim.log.levels.WARN)
+              end)
+            end,
+          })
+        end
+        return true
+      end,
+    })
+    picker:find()
+    return picker
+  end
+
+  local base_dir = base
+  MSR.resolve_make_cwd_async(config, base_dir, function(cwd)
+    local picker = open_picker(cwd)
+    local title_base = picker.prompt_title
+    local canceled_flag = false
+    TASK.enqueue({
+      name = 'make-scan',
+      target = cwd,
+      timeout_ms = (config.make and tonumber(config.make.parse_timeout_ms)) or 0,
+      start = function(done)
+        handle = MK.parse_make_targets_stream_async(config, cwd, function(ev)
+          if ev.kind == 'batch' then
+            for _, t in ipairs(ev.targets or {}) do
+              if not seen[t] then
+                seen[t] = true
+                table.insert(all_targets, t)
+              end
+            end
+            for k, v in pairs(ev.phony or {}) do if v then phony_set[k] = true end end
+            local entries = build_entries()
+            picker:refresh(
+              finders.new_table {
+                results = entries,
+                entry_maker = function(e)
+                  return { value = e.value, display = e.display, ordinal = e.display, kind = e.kind, phony = e.phony }
+                end,
+              },
+              { reset_prompt = false }
+            )
+          elseif ev.kind == 'done' then
+            seen = {}
+            all_targets = {}
+            for _, t in ipairs(ev.targets or {}) do seen[t] = true; table.insert(all_targets, t) end
+            phony_set = ev.phony or {}
+            local entries = build_entries()
+            picker.prompt_title = title_base .. ' ✓('
+              .. tostring(#entries - 1) .. ' targets)'
+            picker:refresh(
+              finders.new_table {
+                results = entries,
+                entry_maker = function(e)
+                  return { value = e.value, display = e.display, ordinal = e.display, kind = e.kind, phony = e.phony }
+                end,
+              },
+              { reset_prompt = false }
+            )
+            done(0)
+          elseif ev.kind == 'error' then
+            picker.prompt_title = title_base .. ' ✗'
+            picker:refresh(
+              finders.new_table {
+                results = { { display = '[Failed to parse make targets]', kind = 'empty' } },
+                entry_maker = function(e)
+                  return { value = e.value, display = e.display, ordinal = e.display, kind = e.kind }
+                end,
+              },
+              { reset_prompt = false }
+            )
+            done(1)
+          end
+        end)
+      end,
+      cancel = function()
+        canceled_flag = true
+        if handle and handle.cancel then pcall(handle.cancel) end
+      end,
+      on_exit = function(code)
+        -- Update title using standardized status label
+        local S = require 'quick-c.status'
+        local label = S.last_label()
+        if canceled_flag and not label then label = 'Canceled' end
+        if label and label ~= 'OK' then
+          picker.prompt_title = title_base .. ' [' .. label .. ']'
+        end
+        -- Refresh to apply title change without resetting entries
+        picker:refresh(
+          finders.new_table {
+            results = build_entries(),
+            entry_maker = function(e)
+              return { value = e.value, display = e.display, ordinal = e.display, kind = e.kind, phony = e.phony }
+            end,
+          },
+          { reset_prompt = false }
+        )
+      end,
+    })
+  end)
+end

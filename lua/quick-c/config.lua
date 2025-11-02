@@ -82,6 +82,12 @@ C.defaults = {
     search = { up = 2, down = 3, ignore_dirs = { '.git', 'node_modules', '.cache' } },
     -- 并发工作者数：用于 Makefile 搜索等异步操作；可根据系统性能微调
     concurrency = 8,
+    streaming = {
+      enabled = true, -- 是否启用流式解析
+      batch_size = 100, -- 每批解析的行数
+      throttle_ms = 60, -- 批次节流时间（ms）
+    },
+    parse_timeout_ms = 0, -- make 解析超时时间
     telescope = {
       prompt_title = 'Quick-c Make Targets',
       preview = true, -- 是否启用预览
