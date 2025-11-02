@@ -1024,9 +1024,6 @@ function M.telescope_quickc_sources(config)
     })
     :find()
 end
-
-return M
-
 -- Streaming Make targets picker: incremental updates, <C-p> toggle PHONY-only, <C-c> cancel
 function M.telescope_make_stream(config)
   local ok_t = pcall(require, 'telescope')
