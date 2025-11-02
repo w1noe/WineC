@@ -41,7 +41,8 @@ function T.run_in_betterterm(config, is_windows, cmd, notify_warn, notify_err, o
   local want_focus = (opts.focus ~= false)
   local prev = vim.api.nvim_get_current_win()
   local prev_mode = (vim.api.nvim_get_mode and vim.api.nvim_get_mode().mode) or 'n'
-  if open_first or focus then
+  -- Only open immediately if we intend to focus now; otherwise avoid toggling UI.
+  if (open_first or focus) and want_focus then
     pcall(betterTerm.open, idx)
   end
   if not want_focus then
@@ -167,6 +168,16 @@ function T.select_or_run_in_terminal(config, is_windows, cmdline, notify_warn, n
                       pcall(betterTerm.open, idx)
                     end, 120)
                   end
+                else
+                  -- Focus a builtin terminal window after sending, to honor explicit user choice
+                  vim.defer_fn(function()
+                    local terms = T.list_open_builtin_terminals()
+                    if terms and #terms > 0 then
+                      -- pick the last one (most recently opened)
+                      local last = terms[#terms]
+                      pcall(open_builtin_terminal_window, config, last.bufnr)
+                    end
+                  end, 120)
                 end
               end
             else
