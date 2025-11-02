@@ -1159,6 +1159,18 @@ function M.telescope_make_stream(config)
                     end
                   end
                 end
+              else
+                -- buffer loaded successfully; attempt to locate target line inside buffer
+                if entry and entry.kind == 'target' and type(entry.value) == 'string' then
+                  local buflines = vim.api.nvim_buf_get_lines(self.state.bufnr, 0, -1, false)
+                  local pat = '^%s*' .. escape_lua_magic(entry.value) .. '%s*:'
+                  for i = 1, #buflines do
+                    if type(buflines[i]) == 'string' and buflines[i]:match(pat) then
+                      target_line_idx = i
+                      break
+                    end
+                  end
+                end
               end
             end
             if set_ft then
