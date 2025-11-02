@@ -1044,6 +1044,7 @@ function M.telescope_make_stream(config)
   local all_targets = {}
   local phony_set = {}
   local handle = nil
+  local scan_state = { completed = false }
 
   local function build_entries()
     local entries = { { display = '[Custom args...]', kind = 'args' } }
@@ -1082,6 +1083,120 @@ function M.telescope_make_stream(config)
         end,
       },
       sorter = conf.generic_sorter {},
+      previewer = (function()
+        if telcfg.preview == false then
+          return nil
+        end
+        local previewers = require 'telescope.previewers'
+        local conf_t = require('telescope.config').values
+        local uv = vim.loop
+        local names = { 'Makefile', 'makefile', 'GNUmakefile' }
+        local function find_makefile(dir)
+          for _, n in ipairs(names) do
+            local p = U.join(dir, n)
+            local st = uv.fs_stat(p)
+            if st and st.type == 'file' then
+              return p
+            end
+          end
+          return nil
+        end
+        local function escape_lua_magic(s)
+          local matches = { ['^']='%^', ['$']='%$', ['(']='%(', [')']='%)', ['%']='%%', ['.']='%.', ['[']='%[', [']']='%]', ['*']='%*', ['+']='%+', ['-']='%-', ['?']='%?' }
+          return (s:gsub('.', matches))
+        end
+        local function to_vim_pat(target)
+          local escaped = vim.fn.escape(target, '\\^$.*[]')
+          return '^\\s*' .. escaped .. '\\s*:'
+        end
+        return previewers.new_buffer_previewer {
+          define_preview = function(self, entry)
+            local path = find_makefile(cwd)
+            if not path or path == '' then
+              vim.api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, { '[No Makefile found]' })
+              return
+            end
+            local abspath = vim.fn.fnamemodify(path, ':p')
+            local st = uv.fs_stat(abspath) or {}
+            local max_bytes = telcfg.max_preview_bytes or (200 * 1024)
+            local max_lines = telcfg.max_preview_lines or 2000
+            local set_ft = (telcfg.set_filetype ~= false)
+            local target_line_idx = nil
+            if st.size and st.size > max_bytes then
+              local ok, lines = pcall(vim.fn.readfile, abspath, '', max_lines)
+              if not ok or not lines then
+                lines = { '[Preview truncated: failed to read file]' }
+              end
+              table.insert(
+                lines,
+                1,
+                string.format('[Preview truncated: %d bytes > %d bytes, showing first %d lines]', st.size or 0, max_bytes, max_lines)
+              )
+              vim.api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, lines)
+              if entry and entry.kind == 'target' and type(entry.value) == 'string' then
+                local pat = '^%s*' .. escape_lua_magic(entry.value) .. '%s*:'
+                for i = 1, #lines do
+                  if type(lines[i]) == 'string' and lines[i]:match(pat) then
+                    target_line_idx = i
+                    break
+                  end
+                end
+              end
+            else
+              local ok = pcall(conf_t.buffer_previewer_maker, abspath, self.state.bufnr, { bufname = self.state.bufname })
+              if not ok then
+                local ok2, lines = pcall(vim.fn.readfile, abspath)
+                if not ok2 or not lines then
+                  lines = { '[Failed to read Makefile]' }
+                end
+                vim.api.nvim_buf_set_lines(self.state.bufnr, 0, -1, false, lines)
+                if entry and entry.kind == 'target' and type(entry.value) == 'string' then
+                  local pat = '^%s*' .. escape_lua_magic(entry.value) .. '%s*:'
+                  for i = 1, #lines do
+                    if type(lines[i]) == 'string' and lines[i]:match(pat) then
+                      target_line_idx = i
+                      break
+                    end
+                  end
+                end
+              end
+            end
+            if set_ft then
+              pcall(vim.api.nvim_buf_set_option, self.state.bufnr, 'filetype', 'make')
+            end
+            local function jump(i, vim_pat)
+              if not (self.state and self.state.winid and i) then
+                if self.state and self.state.winid and vim_pat then
+                  vim.defer_fn(function()
+                    pcall(vim.api.nvim_win_call, self.state.winid, function()
+                      pcall(vim.fn.setreg, '/', vim_pat)
+                      pcall(vim.fn.search, vim_pat, 'w')
+                      pcall(vim.cmd, 'normal! zz')
+                    end)
+                  end, 60)
+                end
+                return
+              end
+              vim.defer_fn(function()
+                pcall(vim.api.nvim_win_set_cursor, self.state.winid, { i, 0 })
+                pcall(vim.api.nvim_win_call, self.state.winid, function()
+                  pcall(vim.cmd, 'normal! zz')
+                end)
+                pcall(vim.api.nvim_buf_add_highlight, self.state.bufnr, -1, 'Search', i - 1, 0, -1)
+              end, 50)
+            end
+            local vpat_final = nil
+            if entry and entry.kind == 'target' and type(entry.value) == 'string' then
+              vpat_final = to_vim_pat(entry.value)
+            end
+            if target_line_idx then
+              jump(target_line_idx, vpat_final)
+            elseif vpat_final then
+              jump(nil, vpat_final)
+            end
+          end,
+        }
+      end)(),
       attach_mappings = function(bufnr, map)
         local actions = require 'telescope.actions'
         local action_state = require 'telescope.actions.state'
@@ -1161,7 +1276,7 @@ function M.telescope_make_stream(config)
         map('n', '<C-p>', toggle_phony_only)
         local function cancel_scan()
           TASK.cancel_current()
-          vim.notify('Quick-c: make scan canceled', vim.log.levels.WARN)
+          vim.notify('Quick-c: make scan canceled', vim.log.levels.INFO)
         end
         map('i', '<C-c>', cancel_scan)
         map('n', '<C-c>', cancel_scan)
@@ -1170,10 +1285,12 @@ function M.telescope_make_stream(config)
           pcall(vim.api.nvim_create_autocmd, 'BufWipeout', {
             buffer = bufnr,
             callback = function()
-              TASK.cancel_current()
-              vim.schedule(function()
-                vim.notify('Quick-c: closed picker, stopped make scan', vim.log.levels.WARN)
-              end)
+              if not scan_state.completed then
+                TASK.cancel_current()
+                vim.schedule(function()
+                  vim.notify('Quick-c: closed picker, stopped make scan', vim.log.levels.INFO)
+                end)
+              end
             end,
           })
         end
@@ -1230,6 +1347,7 @@ function M.telescope_make_stream(config)
               },
               { reset_prompt = false }
             )
+            scan_state.completed = true
             done(0)
           elseif ev.kind == 'error' then
             picker.prompt_title = title_base .. ' ✗'
