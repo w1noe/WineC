@@ -4,6 +4,7 @@ function T.run_in_native_terminal(config, is_windows, cmd, opts)
   opts = opts or {}
   local focus = (opts.focus ~= false)
   local prev = vim.api.nvim_get_current_win()
+  local prev_mode = (vim.api.nvim_get_mode and vim.api.nvim_get_mode().mode) or 'n'
   if config.terminal.open then
     vim.cmd 'botright split | terminal'
     vim.cmd(string.format('resize %d', config.terminal.height or 12))
@@ -16,6 +17,9 @@ function T.run_in_native_terminal(config, is_windows, cmd, opts)
   end
   if not focus then
     pcall(vim.api.nvim_set_current_win, prev)
+    if prev_mode:sub(1, 1) == 'n' then
+      pcall(vim.cmd, 'stopinsert')
+    end
   end
   vim.defer_fn(function()
     vim.fn.chansend(chan, cmd .. (is_windows() and '\r' or '\n'))
@@ -36,11 +40,15 @@ function T.run_in_betterterm(config, is_windows, cmd, notify_warn, notify_err, o
   opts = opts or {}
   local want_focus = (opts.focus ~= false)
   local prev = vim.api.nvim_get_current_win()
+  local prev_mode = (vim.api.nvim_get_mode and vim.api.nvim_get_mode().mode) or 'n'
   if open_first or focus then
     pcall(betterTerm.open, idx)
   end
   if not want_focus then
     pcall(vim.api.nvim_set_current_win, prev)
+    if prev_mode:sub(1, 1) == 'n' then
+      pcall(vim.cmd, 'stopinsert')
+    end
   end
   vim.defer_fn(function()
     local ok_send, err = pcall(betterTerm.send, cmd .. (is_windows() and '\r' or '\n'), idx)
@@ -56,8 +64,11 @@ function T.run_in_betterterm(config, is_windows, cmd, notify_warn, notify_err, o
 end
 
 function T.run_make_in_terminal(config, is_windows, cmdline, notify_warn, notify_err)
-  if not T.run_in_betterterm(config, is_windows, cmdline, notify_warn, notify_err, { focus = false }) then
-    if not T.run_in_native_terminal(config, is_windows, cmdline, { focus = false }) then
+  -- Auto-focus terminal when none is currently open; otherwise do not steal focus.
+  local open_terms = T.list_open_builtin_terminals()
+  local want_focus = (#open_terms == 0)
+  if not T.run_in_betterterm(config, is_windows, cmdline, notify_warn, notify_err, { focus = want_focus }) then
+    if not T.run_in_native_terminal(config, is_windows, cmdline, { focus = want_focus }) then
       notify_err 'Unable to run make: cannot open terminal'
     end
   end
