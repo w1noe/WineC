@@ -1,5 +1,89 @@
 # Quick-c Release Notes
 
+## v1.6.0-beta-1.0 (break change) (2025-11-02)
+
+### 新功能
+- 流式 Make 目标解析：边读边解析 `make -qp`，中/大型项目增量呈现目标，降低卡顿与内存峰值；`-qp` 无效/无结果时自动回退 `-pn`。
+- Telescope 流式选择器：新增 `telescope_make_stream`（命令 `:QuickCMakeStream`）。
+  - 增量刷新；`<C-p>` 切换仅显示 `.PHONY`；`<C-c>` 取消扫描；关闭选择器自动停止解析并提示。
+- 自动检测与切换：`:QuickCMake` 在 `make.streaming.enabled=false` 时先轻量流式探测，若目标数快速增长/超时，自动切换为流式并提示，同时将 `streaming.enabled` 置为 true。
+- 队列与状态统一：流式扫描封装为任务 `make-scan`，支持 `parse_timeout_ms` 超时；开始/结束通过 `status` 上报；标准化结果标签 `OK/Timeout/Canceled/Error`。
+
+### 配置变更
+- 新增：
+  - `make.streaming.enabled = true`
+  - `make.streaming.batch_size = 100`
+  - `make.streaming.throttle_ms = 60`
+  - `make.parse_timeout_ms = 0`
+- 兼容保留：`make.cache.ttl`、`make.prefer`、`make.no_dash_C`、`make.telescope.*`。
+
+### 性能与内存
+- 不缓存完整 stdout，内存占用与“唯一目标数”线性相关；批次缓冲/残缺行缓冲极小；完成/取消后释放引用。
+
+### 命令与键位
+- 新增命令：`QuickCMakeStream` 直接打开流式 Make 目标选择器。
+- 既有命令：`QuickCMake` 自动选择流式/旧模式（遇到大输出自动切流式）。
+- 选择器内：`<C-p>` 切换 PHONY-only；`<C-c>` 取消流式扫描。
+
+### 修复
+- 修复 `quick-c.telescope` 模块可能返回 boolean 的问题，确保稳定导出接口。
+
+### 兼容性
+- Neovim 0.8+；Windows/WSL/MinGW/nmake/Cygwin/Linux/macOS 兼容；`nmake` 自动使用 `-n -p` 兼容模式。
+
+### 升级指南
+- 升级后如遇模块缓存，请执行：
+  - `:lua package.loaded['quick-c.telescope']=nil`
+  - `:lua package.loaded['quick-c']=nil`
+  - `:lua require('quick-c').setup()`
+- 可在 `setup({ make = { streaming = { enabled = true/false } } })` 控制默认行为。
+
+### 已知问题与后续计划
+- 极端超大项目下 Telescope 可能出现轻微刷新抖动；后续将优化节流与批大小自适应。
+- 将补充 README 与指南，覆盖流式解析、自动切换与新命令说明。
+
+## v1.6.0-beta-1.0 (break change) (2025-11-02)
+
+### 新功能
+- 流式 Make 目标解析：边读边解析 `make -qp`，中/大型项目增量呈现目标，降低卡顿与内存峰值；`-qp` 无效/无结果时自动回退 `-pn`。
+- Telescope 流式选择器：新增 `telescope_make_stream`（命令 `:QuickCMakeStream`）。
+  - 增量刷新；`<C-p>` 切换仅显示 `.PHONY`；`<C-c>` 取消扫描；关闭选择器自动停止解析并提示。
+- 自动检测与切换：`:QuickCMake` 在 `make.streaming.enabled=false` 时先轻量流式探测，若目标数快速增长/超时，自动切换为流式并提示，同时将 `streaming.enabled` 置为 true。
+- 队列与状态统一：流式扫描封装为任务 `make-scan`，支持 `parse_timeout_ms` 超时；开始/结束通过 `status` 上报；标准化结果标签 `OK/Timeout/Canceled/Error`。
+
+### 配置变更
+- 新增：
+  - `make.streaming.enabled = true`
+  - `make.streaming.batch_size = 100`
+  - `make.streaming.throttle_ms = 60`
+  - `make.parse_timeout_ms = 0`
+- 兼容保留：`make.cache.ttl`、`make.prefer`、`make.no_dash_C`、`make.telescope.*`。
+
+### 性能与内存
+- 不缓存完整 stdout，内存占用与“唯一目标数”线性相关；批次缓冲/残缺行缓冲极小；完成/取消后释放引用。
+
+### 命令与键位
+- 新增命令：`QuickCMakeStream` 直接打开流式 Make 目标选择器。
+- 既有命令：`QuickCMake` 自动选择流式/旧模式（遇到大输出自动切流式）。
+- 选择器内：`<C-p>` 切换 PHONY-only；`<C-c>` 取消流式扫描。
+
+### 修复
+- 修复 `quick-c.telescope` 模块可能返回 boolean 的问题，确保稳定导出接口。
+
+### 兼容性
+- Neovim 0.8+；Windows/WSL/MinGW/nmake/Cygwin/Linux/macOS 兼容；`nmake` 自动使用 `-n -p` 兼容模式。
+
+### 升级指南
+- 升级后如遇模块缓存，请执行：
+  - `:lua package.loaded['quick-c.telescope']=nil`
+  - `:lua package.loaded['quick-c']=nil`
+  - `:lua require('quick-c').setup()`
+- 可在 `setup({ make = { streaming = { enabled = true/false } } })` 控制默认行为。
+
+### 已知问题与后续计划
+- 极端超大项目下 Telescope 可能出现轻微刷新抖动；后续将优化节流与批大小自适应。
+- 将补充 README 与指南，覆盖流式解析、自动切换与新命令说明。
+
 ## v1.5.11 (2025-11-04)
 
 ### 修复
