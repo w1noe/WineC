@@ -27,4 +27,13 @@ function S.get()
   return state
 end
 
+function S.last_label()
+  local l = state.last
+  if not l then return nil end
+  if l.code == 0 then return 'OK' end
+  if l.code == 124 then return 'Timeout' end
+  if l.code == 130 then return 'Canceled' end
+  return 'Error'
+end
+
 return S

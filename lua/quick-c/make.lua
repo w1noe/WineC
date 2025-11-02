@@ -1,4 +1,5 @@
 local U = require 'quick-c.util'
+local MS = require 'quick-c.make_stream'
 local M = {}
 
 local target_cache = {
@@ -354,6 +355,36 @@ function M.parse_make_targets_in_cwd_async(config, cwd, cb)
       cb { targets = targets, phony = phony }
     end
   end)
+end
+
+-- Streaming wrapper: incremental target parsing with cache awareness
+function M.parse_make_targets_stream_async(config, cwd, on_event)
+  ensure_make_watcher(cwd)
+  local cache_cfg = (config.make or {}).cache or {}
+  local ttl = tonumber(cache_cfg.ttl) or 10
+  local cur_mtime = stat_makefile(cwd)
+  local entry = target_cache[cwd]
+  if entry and entry.targets and entry.at and (os.time() - entry.at <= ttl) and entry.mtime == cur_mtime then
+    -- emit start + done immediately with cached results
+    if on_event then
+      vim.schedule(function()
+        pcall(on_event, { kind = 'start' })
+        pcall(on_event, { kind = 'done', targets = entry.targets, phony = entry.phony or {} })
+      end)
+    end
+    return { cancel = function() end }
+  end
+  -- delegate to streaming module; update cache on done
+  local handle = MS.stream_targets_in_cwd(config, cwd, function(ev)
+    if not ev or not ev.kind then return end
+    if ev.kind == 'done' then
+      local targets = ev.targets or {}
+      local ph = ev.phony or {}
+      target_cache[cwd] = { mtime = cur_mtime, at = os.time(), targets = targets, phony = ph }
+    end
+    if on_event then pcall(on_event, ev) end
+  end)
+  return handle or { cancel = function() end }
 end
 
 function M.make_run_in_cwd(config, cwd, target, run_fn)
