@@ -279,6 +279,8 @@ require('quick-c').setup({
   make = {
     prefer = { 'make', 'mingw32-make' },
     cache = { ttl = 10 },
+    -- Streaming parsing (good for large projects): enables incremental discovery for `:QuickCMakeStream`
+    streaming = { enabled = true, batch_size = 100, throttle_ms = 60 },
     -- When true, omit `-C <cwd>` and run in the terminal's current directory
     no_dash_C = false,
     telescope = { choose_terminal = 'auto' },
@@ -441,6 +443,10 @@ require('quick-c').setup({
 - Preview enhancements:
   - Jump-to-definition: after selecting a target, the preview auto-scrolls to its definition in `Makefile`/`CMakeLists.txt`.
   - Soft wrapping: wrap/linebreak/breakindent are enabled in preview for long lines.
+  - Streaming Make picker: for large projects, use `:QuickCMakeStream` to open an incremental target picker.
+    - `<C-p>` toggles PHONY-only view
+    - `<C-c>` cancels scanning
+    - Preview jump reliability improved: whether the Makefile is fully loaded or truncated, the picker scans lines to find `^<target>:` and performs a second-pass Vim regex search after drawing.
 - Large files are truncated by bytes/lines; controlled by:
   - `make.telescope.preview`
   - `make.telescope.max_preview_bytes`

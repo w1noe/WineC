@@ -230,6 +230,8 @@ require("quick-c").setup({
   make = {
     prefer = { "make", "mingw32-make" },
     cache = { ttl = 10 },
+    -- 流式解析（适合大项目）：开启后 `:QuickCMakeStream` 支持边读边解析
+    streaming = { enabled = true, batch_size = 100, throttle_ms = 60 },
     -- 当为 true 时，发送 make 命令时不附带 `-C <cwd>`，在当前终端目录执行
     no_dash_C = false,
     telescope = { choose_terminal = "auto" },
@@ -343,6 +345,10 @@ require('quick-c').setup({
 - 预览增强：
   - **跳转到定义**：选中目标后，预览自动跳转至该目标在 `Makefile`/`CMakeLists.txt` 中的定义附近。
   - **软换行**：预览窗口启用 wrap/linebreak/breakindent，长行可读性更好。
+  - **流式 Make 选择器**：在大项目中建议使用 `:QuickCMakeStream` 打开流式目标选择器，实时增量刷新；在选择器中
+    - `<C-p>` 切换仅显示 `.PHONY`
+    - `<C-c>` 取消扫描
+    - 预览定位已增强：在正常载入/截断载入两种情况下都会尽力定位到 `^<target>:` 定义行，并在绘制完成后进行二次正则搜索，提升命中率。
 - 对大文件自动截断，受以下配置项控制：
   - `make.telescope.preview`：是否启用预览。
   - `make.telescope.max_preview_bytes`：超过该字节数则改为按行读取并截断。
