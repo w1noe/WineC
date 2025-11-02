@@ -27,6 +27,8 @@
 
 ### 修复
 - 修复 `quick-c.telescope` 模块可能返回 boolean 的问题，确保稳定导出接口。
+- 修复流式解析中 `.PHONY` 未被识别与显示的问题（`make -qp/-pn` 输出解析）。
+- 改进流式目标预览的定位：在正常加载 Makefile 时也进行行级扫描与二次 Vim 正则搜索，显著提升光标跳转命中率。
 
 ### 兼容性
 - Neovim 0.8+；Windows/WSL/MinGW/nmake/Cygwin/Linux/macOS 兼容；`nmake` 自动使用 `-n -p` 兼容模式。
