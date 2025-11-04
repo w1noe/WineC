@@ -41,8 +41,10 @@ function T.run_in_betterterm(config, is_windows, cmd, notify_warn, notify_err, o
   local want_focus = (opts.focus ~= false)
   local prev = vim.api.nvim_get_current_win()
   local prev_mode = (vim.api.nvim_get_mode and vim.api.nvim_get_mode().mode) or 'n'
-  -- Only open immediately if we intend to focus now; otherwise avoid toggling UI.
-  if (open_first or focus) and want_focus then
+  -- Open terminal if requested by config (open_if_closed) or when focusing is desired.
+  -- Even when we don't want to steal focus, we still open the terminal to ensure the session exists,
+  -- then immediately restore previous window to avoid key leakage and focus steal.
+  if (open_first or focus) then
     pcall(betterTerm.open, idx)
   end
   if not want_focus then
