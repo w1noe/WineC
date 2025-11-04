@@ -554,9 +554,8 @@ function B.run(config, notify, exe_or_opts)
   else
     cmd = string.format("'%s'", exe)
   end
-  -- Do not steal focus when running, to avoid leaking pending keystrokes into terminal
-  if not T.run_in_betterterm(config, U.is_windows, cmd, notify.warn, notify.err, { focus = false }) then
-    if not T.run_in_native_terminal(config, U.is_windows, cmd, { focus = false }) then
+  if not T.run_in_betterterm(config, U.is_windows, cmd, notify.warn, notify.err) then
+    if not T.run_in_native_terminal(config, U.is_windows, cmd) then
       notify.err 'Unable to run command: cannot open terminal'
     end
   end
