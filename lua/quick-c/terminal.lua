@@ -38,14 +38,18 @@ function T.run_in_betterterm(config, is_windows, cmd, notify_warn, notify_err, o
   local focus = (cfg.focus_on_run ~= false)
   local open_first = (cfg.open_if_closed ~= false)
   opts = opts or {}
-  local want_focus = (opts.focus ~= false)
+  -- Respect both config focus_on_run and caller override. Only focus if BOTH allow focus.
+  local want_focus = (focus == true) and (opts.focus ~= false)
   local prev = vim.api.nvim_get_current_win()
   local prev_mode = (vim.api.nvim_get_mode and vim.api.nvim_get_mode().mode) or 'n'
-  -- Only open immediately if we intend to focus now; otherwise avoid toggling UI.
-  if (open_first or focus) and want_focus then
+  -- Open terminal if requested by config (open_if_closed) or when focusing is desired.
+  -- Even when we don't want to steal focus, we still open the terminal to ensure the session exists,
+  -- then immediately restore previous window to avoid key leakage and focus steal.
+  if (open_first or focus) then
     pcall(betterTerm.open, idx)
   end
   if not want_focus then
+    -- Restore immediately to avoid stealing focus
     pcall(vim.api.nvim_set_current_win, prev)
     if prev_mode:sub(1, 1) == 'n' then
       pcall(vim.cmd, 'stopinsert')
@@ -59,6 +63,15 @@ function T.run_in_betterterm(config, is_windows, cmd, notify_warn, notify_err, o
         notify_err 'Failed to open native terminal'
       end
       return
+    end
+    -- Some versions of betterTerm may re-focus after open/send; if we don't want focus, restore again after send
+    if not want_focus then
+      vim.defer_fn(function()
+        pcall(vim.api.nvim_set_current_win, prev)
+        if prev_mode:sub(1, 1) == 'n' then
+          pcall(vim.cmd, 'stopinsert')
+        end
+      end, 10)
     end
   end, delay)
   return true
