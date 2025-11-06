@@ -453,14 +453,28 @@ function M.build_in_root(config, root, target, run_terminal)
             end
             if should_open() then
               if diagcfg.use_telescope then
-                local ok_tb, tb = pcall(require, 'telescope.builtin')
-                if ok_tb then
-                  tb.quickfix()
+                local ok_qc, qct = pcall(require, 'quick-c.telescope')
+                if ok_qc and qct and qct.telescope_quickfix then
+                  pcall(qct.telescope_quickfix, config)
                 else
-                  vim.cmd 'copen'
+                  local ok_tb, tb = pcall(require, 'telescope.builtin')
+                  if ok_tb and tb and tb.quickfix then
+                    pcall(tb.quickfix)
+                  else
+                    pcall(vim.cmd, 'copen')
+                  end
                 end
               else
-                vim.cmd 'copen'
+                pcall(vim.cmd, 'copen')
+              end
+              if not (pcall(require, 'telescope')) then
+                local info = vim.fn.getqflist({ winid = 1 }) or {}
+                local wid = info.winid or 0
+                if wid ~= 0 then
+                  pcall(vim.api.nvim_win_set_option, wid, 'wrap', true)
+                  pcall(vim.api.nvim_win_set_option, wid, 'linebreak', true)
+                  pcall(vim.api.nvim_win_set_option, wid, 'breakindent', true)
+                end
               end
             end
             if should_jump() then
