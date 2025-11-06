@@ -31,6 +31,8 @@
   <img src="https://dotfyle.com/plugins/AuroBreeze/quick-c/shield" />
 </a>
 
+<a href="https://deepwiki.com/AuroBreeze/quick-c"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
+
 ## ✨ 特性
 
  - 🚀 **一键构建/运行（异步）**：`QuickCBuild`、`QuickCRun`、`QuickCBR`（构建并运行）
