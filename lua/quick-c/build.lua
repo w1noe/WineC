@@ -4,6 +4,8 @@ local TASK = require 'quick-c.task'
 local B = {}
 local NAME_CACHE = {}
 local LAST_EXE = {}
+local LAST_COMPILE_ARGS = {}
+
 local function cleanup_build_logs(base, max_keep)
   local uv = vim.loop
   local ok, req = pcall(uv.fs_scandir, base)
@@ -312,6 +314,7 @@ local function build_cmd(config, is_win, ft, sources, out)
   if not family then
     return nil
   end
+
   if family == 'cl' then
     local args = { 'cl', '/Zi', '/Od' }
     for _, s in ipairs(sources) do
@@ -388,6 +391,176 @@ function B.get_output_name_async(config, sources, preset_name, cb, default_overr
   end
 end
 
+-- Expand a template list with placeholders into argv list
+-- tmpl: array, elements may contain placeholders {sources} {out} {cc} {ft}
+local function expand_template_argv(tmpl, vars)
+  local out = {}
+  for _, part in ipairs(tmpl or {}) do
+    if part == '{sources}' then
+      for _, s in ipairs(vars.sources or {}) do table.insert(out, s) end
+    elseif part == '{out}' then
+      table.insert(out, vars.out)
+    elseif part == '{cc}' then
+      table.insert(out, vars.cc)
+    elseif part == '{ft}' then
+      table.insert(out, vars.ft)
+    else
+      local replaced = part
+      replaced = replaced:gsub('%%{sources%%}', '{sources}')
+      replaced = replaced:gsub('%%{out%%}', '{out}')
+      replaced = replaced:gsub('%%{cc%%}', '{cc}')
+      replaced = replaced:gsub('%%{ft%%}', '{ft}')
+      replaced = replaced:gsub('{out}', vars.out)
+      replaced = replaced:gsub('{cc}', vars.cc)
+      replaced = replaced:gsub('{ft}', vars.ft)
+      if replaced ~= '{sources}' then
+        table.insert(out, replaced)
+      else
+        for _, s in ipairs(vars.sources or {}) do table.insert(out, s) end
+      end
+    end
+  end
+  return out
+end
+
+local function clone_list(t)
+  local o = {}
+  for _, v in ipairs(t or {}) do table.insert(o, v) end
+  return o
+end
+
+local function project_key()
+  local root = vim.fn.getcwd()
+  return require('quick-c.util').norm(root)
+end
+
+-- Let user optionally customize compile command via Telescope/ui
+-- cb(argv_or_nil): when nil, use built-in cmd
+local function choose_user_compile_cmd_async(config, is_win, ft, sources, exe, builtin_cmd, cb)
+  local cc_name = (choose_compiler(config, is_win, ft))
+  local cc = cc_name
+  local ucfg = (config.compile and config.compile.user_cmd) or {}
+  if not ucfg.enabled then
+    cb(nil)
+    return
+  end
+  local tel = (ucfg.telescope or {})
+  if tel.popup ~= true then
+    cb(nil)
+    return
+  end
+  local presets = ucfg.presets or {}
+  local entries = {}
+  table.insert(entries, { display = '[Use built-in]', kind = 'builtin' })
+  table.insert(entries, { display = '[Custom args...]', kind = 'args' })
+  for idx, p in ipairs(presets) do
+    local disp
+    if type(p) == 'table' then
+      disp = table.concat(p, ' ')
+    else
+      disp = tostring(p)
+    end
+    table.insert(entries, { display = disp, kind = 'preset', value = p, idx = idx })
+  end
+  local function finalize(choice)
+    if not choice then
+      cb(nil)
+      return
+    end
+    if choice.kind == 'builtin' then
+      cb(clone_list(builtin_cmd))
+      return
+    end
+    if choice.kind == 'preset' then
+      local tmpl = choice.value
+      if type(tmpl) ~= 'table' then
+        -- string template unsupported for robust argv; fall back to builtin
+        cb(clone_list(builtin_cmd))
+        return
+      end
+      local argv = expand_template_argv(tmpl, { sources = sources, out = exe, cc = cc or '', ft = ft })
+      cb(argv)
+      return
+    end
+    if choice.kind == 'args' then
+      local key = project_key()
+      local def_cfg = ucfg.default
+      local def_from_cfg = ''
+      if type(def_cfg) == 'table' then
+        def_from_cfg = table.concat(def_cfg, ' ')
+      elseif type(def_cfg) == 'string' then
+        def_from_cfg = def_cfg
+      end
+      local def = ''
+      if ucfg.remember_last ~= false then
+        def = (LAST_COMPILE_ARGS[key] and LAST_COMPILE_ARGS[key] ~= '' and LAST_COMPILE_ARGS[key]) or def_from_cfg or ''
+      else
+        def = def_from_cfg or ''
+      end
+      local ui = vim.ui or {}
+      if not ui.input then
+        cb(clone_list(builtin_cmd))
+        return
+      end
+      ui.input({ prompt = 'extra compile args: ', default = def }, function(arg)
+        if ucfg.remember_last ~= false then LAST_COMPILE_ARGS[key] = arg or '' end
+        if not arg or arg == '' then
+          cb(clone_list(builtin_cmd))
+          return
+        end
+        local argv = clone_list(builtin_cmd)
+        for a in string.gmatch(arg, "[^%s]+") do table.insert(argv, a) end
+        cb(argv)
+      end)
+      return
+    end
+    cb(nil)
+  end
+  local ok_t = pcall(require, 'telescope')
+  if ok_t then
+    local pickers = require 'telescope.pickers'
+    local finders = require 'telescope.finders'
+    local conf = require('telescope.config').values
+    pickers
+      .new({}, {
+        prompt_title = tel.prompt_title or 'Quick-c Compile',
+        finder = finders.new_table {
+          results = entries,
+          entry_maker = function(e)
+            return { value = e, display = e.display, ordinal = e.display, kind = e.kind }
+          end,
+        },
+        sorter = conf.generic_sorter {},
+        attach_mappings = function(bufnr, map)
+          local actions = require 'telescope.actions'
+          local action_state = require 'telescope.actions.state'
+          local function choose(pbuf)
+            local entry = action_state.get_selected_entry()
+            actions.close(pbuf)
+            finalize(entry and entry.value or nil)
+          end
+          map('i', '<CR>', choose)
+          map('n', '<CR>', choose)
+          return true
+        end,
+      })
+      :find()
+    return
+  end
+  local ui = vim.ui or {}
+  if ui.select then
+    local items = {}
+    for _, e in ipairs(entries) do table.insert(items, e.display) end
+    ui.select(items, { prompt = tel.prompt_title or 'Quick-c Compile' }, function(sel)
+      if not sel then finalize(nil) return end
+      for _, e in ipairs(entries) do if e.display == sel then finalize(e) return end end
+      finalize(nil)
+    end)
+    return
+  end
+  cb(nil)
+end
+
 function B.build(config, notify, opts)
   opts = opts or {}
   local timeout_ms = (config.build and config.build.timeout_ms) or 0
@@ -422,16 +595,18 @@ function B.build(config, notify, opts)
         end
         local is_win = U.is_windows()
         local exe = resolve_out_path(config, sources, name)
-        local cmd = build_cmd(config, is_win, ft, sources, exe)
-        if not cmd then
+        local builtin_cmd = build_cmd(config, is_win, ft, sources, exe)
+        if not builtin_cmd then
           notify.err 'No available compiler found. Check PATH or set compile.prefer in setup()'
           if opts.on_exit then pcall(opts.on_exit, 1, nil) end
           done(1)
           return
         end
-        local cmdline = table.concat(cmd, ' ')
-        local all_stdout, all_stderr = {}, {}
-        job_id = vim.fn.jobstart(cmd, {
+        choose_user_compile_cmd_async(config, is_win, ft, sources, exe, builtin_cmd, function(user_argv)
+          local cmd = user_argv or builtin_cmd
+          local cmdline = table.concat(cmd, ' ')
+          local all_stdout, all_stderr = {}, {}
+          job_id = vim.fn.jobstart(cmd, {
           stdout_buffered = true,
           stderr_buffered = true,
           detach = false,
@@ -480,10 +655,28 @@ function B.build(config, notify, opts)
                 end
                 if should_open() then
                   if diagcfg.use_telescope then
-                    local ok_tb, tb = pcall(require, 'telescope.builtin')
-                    if ok_tb then tb.quickfix() else vim.cmd 'copen' end
+                    local ok_qc, qct = pcall(require, 'quick-c.telescope')
+                    if ok_qc and qct and qct.telescope_quickfix then
+                      pcall(qct.telescope_quickfix, config)
+                    else
+                      local ok_tb, tb = pcall(require, 'telescope.builtin')
+                      if ok_tb and tb and tb.quickfix then
+                        pcall(tb.quickfix)
+                      else
+                        pcall(vim.cmd, 'copen')
+                      end
+                    end
                   else
-                    vim.cmd 'copen'
+                    pcall(vim.cmd, 'copen')
+                  end
+                  if not (pcall(require, 'telescope')) then
+                    local info = vim.fn.getqflist({ winid = 1 }) or {}
+                    local wid = info.winid or 0
+                    if wid ~= 0 then
+                      pcall(vim.api.nvim_win_set_option, wid, 'wrap', true)
+                      pcall(vim.api.nvim_win_set_option, wid, 'linebreak', true)
+                      pcall(vim.api.nvim_win_set_option, wid, 'breakindent', true)
+                    end
                   end
                 end
                 if should_jump() then
@@ -519,10 +712,11 @@ function B.build(config, notify, opts)
             done(code)
           end,
         })
-        if (job_id or 0) <= 0 then
-          notify.err 'Failed to start build process'
-          done(1)
-        end
+          if (job_id or 0) <= 0 then
+            notify.err 'Failed to start build process'
+            done(1)
+          end
+        end)
       end, default_override)
     end,
   }

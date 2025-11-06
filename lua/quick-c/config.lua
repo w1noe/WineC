@@ -21,6 +21,26 @@ C.defaults = {
   compile = {
     prefer = { c = nil, cpp = nil },
     prefer_force = false,
+    -- 用户自定义编译命令：可通过模板或预设完全覆盖内置命令
+    -- 当 enabled = true 时，构建流程会优先询问/选择自定义命令；未选择时回退到内置命令
+    user_cmd = {
+      enabled = true,
+      -- 是否使用 Telescope 弹窗选择：包含 [Use built-in]、[Custom input...] 以及 presets
+      telescope = {
+        popup = false, -- 参考 make 的交互，默认不弹；开启后若未安装 telescope 将自动回退到 vim.ui
+        prompt_title = 'Quick-c Compile',
+      },
+      -- 预设命令（推荐使用列表形式以避免 shell 解析问题）：
+      -- 必须使用完整的编译命令，这不是追加参数
+      -- 允许占位符：{sources} {out} {cc} {ft}
+      -- 例如：{ 'gcc', '-g', '-O0', '{sources}', '-o', '{out}' }
+      presets = {},
+      -- 自定义输入的默认模板（字符串或数组）。
+      -- 这是弹窗后的追加命令
+      default = nil,
+      -- 记住每个项目最近一次输入（用于下次默认值）
+      remember_last = true,
+    },
   },
   -- compile_commands.json 相关配置
   compile_commands = {
