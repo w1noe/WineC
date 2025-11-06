@@ -2,6 +2,12 @@
 
 ## v1.5.12 (2025-11-06)
 
+### 改进
+- Quickfix 可读性：所有诊断项自动加上分类前缀（`[error]`/`[warning]`），避免一眼看不出严重级别。
+- 长消息展示：
+  - 优先使用增强版 Telescope Quickfix 视图（右侧预览默认软换行）。
+  - 回退到 `:copen` 时，为 quickfix 窗口启用 `wrap/linebreak/breakindent`，长行不再被遮挡。
+
 ### 新增
 - 自定义编译命令（可选启用）：
   - 新增 `compile.user_cmd`，可通过预设或追加参数自定义编译命令。
