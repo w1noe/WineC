@@ -78,6 +78,14 @@ function U.parse_diagnostics(lines)
         text = msg,
         type = (typ == 'error' and 'E' or 'W'),
       }
+      do
+        local lower = (it.text or ''):lower()
+        if it.type == 'E' then
+          if not lower:match('^%[error%]') then it.text = '[error] ' .. (it.text or '') end
+        else
+          if not lower:match('^%[warning%]') then it.text = '[warning] ' .. (it.text or '') end
+        end
+      end
       if it.type == 'E' then
         has_error = true
       else
@@ -95,6 +103,14 @@ function U.parse_diagnostics(lines)
         text = msg2,
         type = (typ2 == 'error' and 'E' or 'W'),
       }
+      do
+        local lower = (it.text or ''):lower()
+        if it.type == 'E' then
+          if not lower:match('^%[error%]') then it.text = '[error] ' .. (it.text or '') end
+        else
+          if not lower:match('^%[warning%]') then it.text = '[warning] ' .. (it.text or '') end
+        end
+      end
       if it.type == 'E' then
         has_error = true
       else
@@ -112,6 +128,14 @@ function U.parse_diagnostics(lines)
         text = msgm,
         type = (typm:lower() == 'error' and 'E' or 'W'),
       }
+      do
+        local lower = (it.text or ''):lower()
+        if it.type == 'E' then
+          if not lower:match('^%[error%]') then it.text = '[error] ' .. (it.text or '') end
+        else
+          if not lower:match('^%[warning%]') then it.text = '[warning] ' .. (it.text or '') end
+        end
+      end
       if it.type == 'E' then
         has_error = true
       else
