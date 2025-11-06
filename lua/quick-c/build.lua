@@ -539,8 +539,16 @@ local function choose_user_compile_cmd_async(config, is_win, ft, sources, exe, b
             actions.close(pbuf)
             finalize(entry and entry.value or nil)
           end
+          local function cancel(pbuf)
+            actions.close(pbuf)
+            finalize(nil)
+          end
           map('i', '<CR>', choose)
           map('n', '<CR>', choose)
+          map('i', '<Esc>', cancel)
+          map('n', '<Esc>', cancel)
+          map('n', 'q', cancel)
+          map('i', '<C-c>', cancel)
           return true
         end,
       })
