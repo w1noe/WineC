@@ -484,7 +484,19 @@ local function choose_user_compile_cmd_async(config, is_win, ft, sources, exe, b
     end
     if choice.kind == 'args' then
       local key = project_key()
-      local def = (ucfg.remember_last ~= false) and (LAST_COMPILE_ARGS[key] or '') or ''
+      local def_cfg = ucfg.default
+      local def_from_cfg = ''
+      if type(def_cfg) == 'table' then
+        def_from_cfg = table.concat(def_cfg, ' ')
+      elseif type(def_cfg) == 'string' then
+        def_from_cfg = def_cfg
+      end
+      local def = ''
+      if ucfg.remember_last ~= false then
+        def = (LAST_COMPILE_ARGS[key] and LAST_COMPILE_ARGS[key] ~= '' and LAST_COMPILE_ARGS[key]) or def_from_cfg or ''
+      else
+        def = def_from_cfg or ''
+      end
       local ui = vim.ui or {}
       if not ui.input then
         cb(clone_list(builtin_cmd))

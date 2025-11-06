@@ -44,6 +44,39 @@ compile = {
 }
 ```
 
+### 自定义编译命令 compile.user_cmd
+- 作用：在保留默认行为的同时，按需“追加参数”或用“预设模板”完全替换编译命令。
+- 默认：关闭；未开启或未弹窗时，行为与旧版一致，仍使用内置命令。
+
+```lua
+compile = {
+  user_cmd = {
+    enabled = true,                 -- 开启自定义能力
+    telescope = { popup = true },   -- 弹出选择器（Use built-in / Custom args… / presets）
+    -- 作为 “[Custom args…]” 输入框默认值（无历史时），字符串或数组均可
+    default = { "-O2", "-DNDEBUG" },  -- 或 "-O2 -DNDEBUG"
+    remember_last = true,           -- 记住每个项目最近一次输入
+    -- 预设模板：完整替换命令（argv 数组，避免 shell 解析问题）
+    -- 支持占位符：{sources} {out} {cc} {ft}
+    presets = {
+      { "{cc}", "-g", "-O0", "-Wall", "-Wextra", "{sources}", "-o", "{out}" },
+      { "{cc}", "-O2", "{sources}", "-o", "{out}" },
+    },
+  },
+}
+```
+
+- 占位符说明：
+  - `{sources}` 源文件列表（会展开为多个 argv 元素）
+  - `{out}` 输出可执行文件路径
+  - `{cc}` 选中的编译器（gcc/g++/clang/clang++/cl）
+  - `{ft}` 文件类型（c/cpp）
+- 字面量转义：`%{sources%}`/`%{out%}`/`%{cc%}`/`%{ft%}` 保留为文本，不会被替换。
+- 行为细节：
+  - 选择 `[Use built-in]`：使用内置命令，不改变默认行为。
+  - 选择 `[Custom args…]`：在内置命令后追加参数；默认值优先“上次输入”，否则使用 `default`。
+  - 选择某个 `presets`：按模板完整生成 argv，通常需至少包含 `{sources}` 与 `{out}`。
+
 ### 诊断列表 diagnostics.quickfix
 ```lua
 diagnostics = {

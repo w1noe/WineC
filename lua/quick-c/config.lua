@@ -24,7 +24,7 @@ C.defaults = {
     -- 用户自定义编译命令：可通过模板或预设完全覆盖内置命令
     -- 当 enabled = true 时，构建流程会优先询问/选择自定义命令；未选择时回退到内置命令
     user_cmd = {
-      enabled = false,
+      enabled = true,
       -- 是否使用 Telescope 弹窗选择：包含 [Use built-in]、[Custom input...] 以及 presets
       telescope = {
         popup = false, -- 参考 make 的交互，默认不弹；开启后若未安装 telescope 将自动回退到 vim.ui

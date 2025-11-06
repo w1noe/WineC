@@ -1,5 +1,47 @@
 # Quick-c Release Notes
 
+## v1.5.12 (2025-11-06)
+
+### 新增
+- 自定义编译命令（可选启用）：
+  - 新增 `compile.user_cmd`，可通过预设或追加参数自定义编译命令。
+  - 保留默认行为：未启用或未弹窗时，仍使用内置命令构建。
+- Telescope 选择器（可选）：
+  - 当 `compile.user_cmd.telescope.popup = true` 时，构建前弹出选择：
+    - `[Use built-in]` 使用内置命令
+    - `[Custom args…]` 在内置命令后追加参数（可记忆上次输入）
+    - 预设项（presets） 使用完整模板命令（支持占位符）
+
+### 配置示例
+```lua
+require('quick-c').setup({
+  compile = {
+    user_cmd = {
+      enabled = true,
+      telescope = { popup = true },
+      -- 作为 [Custom args…] 输入框默认值（无历史时）
+      default = { "-O2", "-DNDEBUG" }, -- 或 "-O2 -DNDEBUG"
+      remember_last = true,              -- 记住每项目最近一次输入
+      -- 完整替换命令（argv 数组，避免 shell 解析问题）
+      -- 支持占位符：{sources} {out} {cc} {ft}
+      presets = {
+        { "{cc}", "-g", "-O0", "-Wall", "-Wextra", "{sources}", "-o", "{out}" },
+        { "{cc}", "-O2", "{sources}", "-o", "{out}" },
+      },
+    },
+  },
+})
+```
+
+### 行为
+- 未启用或未弹窗：编译行为与旧版完全一致。
+- 启用+弹窗：
+  - 选 `[Custom args…]` 时，默认值优先“上次输入”，否则使用 `default`。
+  - 选预设时，用完整模板命令替换内置命令。
+
+### 兼容性
+- 无破坏性变更；旧配置无需修改即可继续使用。
+
 ## v1.5.11 (2025-11-04)
 
 ### 修复
