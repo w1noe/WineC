@@ -629,93 +629,98 @@ function B.build(config, notify, opts)
             end
           end,
           on_exit = function(_, code)
-            local diagcfg = (config.diagnostics and config.diagnostics.quickfix) or {}
-            local qf_enabled = (diagcfg.enabled ~= false)
-            local lines = {}
-            for _, s in ipairs(all_stdout) do table.insert(lines, s) end
-            for _, s in ipairs(all_stderr) do table.insert(lines, s) end
-            if #lines > 0 then write_build_logs(lines) end
-            -- Compute diagnostics summary for notification
-            local items = {}
-            do
-              local parsed = { U.parse_diagnostics(lines) }
-              items = parsed[1] or {}
-            end
+            -- Ensure any unexpected error here won't block the task queue
             local err_cnt, warn_cnt = 0, 0
-            for _, it in ipairs(items) do
-              if it.type == 'E' then err_cnt = err_cnt + 1 else warn_cnt = warn_cnt + 1 end
-            end
-            if qf_enabled and #lines > 0 then
-              local items, has_error, has_warning = U.parse_diagnostics(lines)
-              if #items > 0 then
-                vim.fn.setqflist({}, ' ', { title = 'Quick-c Build', items = items })
-                local function should_open()
-                  if diagcfg.open == 'always' then return true end
-                  if diagcfg.open == 'error' and has_error then return true end
-                  if diagcfg.open == 'warning' and (has_error or has_warning) then return true end
-                  return false
-                end
-                local function should_jump()
-                  if diagcfg.jump == 'always' then return true end
-                  if diagcfg.jump == 'error' and has_error then return true end
-                  if diagcfg.jump == 'warning' and (has_error or has_warning) then return true end
-                  return false
-                end
-                if should_open() then
-                  if diagcfg.use_telescope then
-                    local ok_qc, qct = pcall(require, 'quick-c.telescope')
-                    if ok_qc and qct and qct.telescope_quickfix then
-                      pcall(qct.telescope_quickfix, config)
-                    else
-                      local ok_tb, tb = pcall(require, 'telescope.builtin')
-                      if ok_tb and tb and tb.quickfix then
-                        pcall(tb.quickfix)
-                      else
-                        pcall(vim.cmd, 'copen')
-                      end
-                    end
-                  else
-                    pcall(vim.cmd, 'copen')
-                  end
-                  if not (pcall(require, 'telescope')) then
-                    local info = vim.fn.getqflist({ winid = 1 }) or {}
-                    local wid = info.winid or 0
-                    if wid ~= 0 then
-                      pcall(vim.api.nvim_win_set_option, wid, 'wrap', true)
-                      pcall(vim.api.nvim_win_set_option, wid, 'linebreak', true)
-                      pcall(vim.api.nvim_win_set_option, wid, 'breakindent', true)
-                    end
-                  end
-                end
-                if should_jump() then
-                  local cur = vim.api.nvim_get_current_buf()
-                  local nameb = vim.api.nvim_buf_get_name(cur)
-                  local modified = false
-                  pcall(function() modified = vim.api.nvim_buf_get_option(cur, 'modified') end)
-                  if not (nameb == '' and modified) then
-                    pcall(vim.cmd, 'silent! keepalt keepjumps cc')
-                  end
+            local ok = pcall(function()
+              local diagcfg = (config.diagnostics and config.diagnostics.quickfix) or {}
+              local qf_enabled = (diagcfg.enabled ~= false)
+              local lines = {}
+              for _, s in ipairs(all_stdout) do table.insert(lines, s) end
+              for _, s in ipairs(all_stderr) do table.insert(lines, s) end
+              if #lines > 0 then pcall(write_build_logs, lines) end
+              -- Compute diagnostics summary for notification (protected)
+              local parsed_items = {}
+              local ok_parse, pitems, has_error, has_warning = pcall(U.parse_diagnostics, lines)
+              if ok_parse then
+                parsed_items = pitems or {}
+                for _, it in ipairs(parsed_items) do
+                  if it.type == 'E' then err_cnt = err_cnt + 1 else warn_cnt = warn_cnt + 1 end
                 end
               else
-                if code == 0 then vim.fn.setqflist {} end
+                parsed_items = {}
+                err_cnt, warn_cnt = 0, 0
               end
-            end
-            local dur = (((vim.loop and vim.loop.now and vim.loop.now()) or started_at) - started_at)
-            local secs = (dur or 0) / 1000
-            local msg = {}
-            if code == 0 then
-              table.insert(msg, string.format('Build OK -> %s', exe))
-            else
-              table.insert(msg, string.format('Build failed (%d)', code))
-            end
-            table.insert(msg, string.format('Time: %.2fs | Errors: %d, Warnings: %d', secs, err_cnt, warn_cnt))
-            table.insert(msg, 'Cmd: ' .. cmdline)
-            local full = table.concat(msg, '\n')
-            if code == 0 then notify.info(full) else notify.err(full) end
-            if code == 0 then
-              local root = vim.fn.getcwd()
-              LAST_EXE[U.norm(root)] = exe
-            end
+              if qf_enabled and #lines > 0 then
+                if ok_parse and #parsed_items > 0 then
+                  pcall(vim.fn.setqflist, {}, ' ', { title = 'Quick-c Build', items = parsed_items })
+                  local function should_open()
+                    if diagcfg.open == 'always' then return true end
+                    if diagcfg.open == 'error' and has_error then return true end
+                    if diagcfg.open == 'warning' and (has_error or has_warning) then return true end
+                    return false
+                  end
+                  local function should_jump()
+                    if diagcfg.jump == 'always' then return true end
+                    if diagcfg.jump == 'error' and has_error then return true end
+                    if diagcfg.jump == 'warning' and (has_error or has_warning) then return true end
+                    return false
+                  end
+                  if should_open() then
+                    if diagcfg.use_telescope then
+                      local ok_qc, qct = pcall(require, 'quick-c.telescope')
+                      if ok_qc and qct and qct.telescope_quickfix then
+                        pcall(qct.telescope_quickfix, config)
+                      else
+                        local ok_tb, tb = pcall(require, 'telescope.builtin')
+                        if ok_tb and tb and tb.quickfix then
+                          pcall(tb.quickfix)
+                        else
+                          pcall(vim.cmd, 'copen')
+                        end
+                      end
+                    else
+                      pcall(vim.cmd, 'copen')
+                    end
+                    if not (pcall(require, 'telescope')) then
+                      local info = vim.fn.getqflist({ winid = 1 }) or {}
+                      local wid = info.winid or 0
+                      if wid ~= 0 then
+                        pcall(vim.api.nvim_win_set_option, wid, 'wrap', true)
+                        pcall(vim.api.nvim_win_set_option, wid, 'linebreak', true)
+                        pcall(vim.api.nvim_win_set_option, wid, 'breakindent', true)
+                      end
+                    end
+                  end
+                  if should_jump() then
+                    local cur = vim.api.nvim_get_current_buf()
+                    local nameb = vim.api.nvim_buf_get_name(cur)
+                    local modified = false
+                    pcall(function() modified = vim.api.nvim_buf_get_option(cur, 'modified') end)
+                    if not (nameb == '' and modified) then
+                      pcall(vim.cmd, 'silent! keepalt keepjumps cc')
+                    end
+                  end
+                else
+                  if code == 0 then pcall(vim.fn.setqflist, {}) end
+                end
+              end
+              local dur = (((vim.loop and vim.loop.now and vim.loop.now()) or started_at) - started_at)
+              local secs = (dur or 0) / 1000
+              local msg = {}
+              if code == 0 then
+                table.insert(msg, string.format('Build OK -> %s', exe))
+              else
+                table.insert(msg, string.format('Build failed (%d)', code))
+              end
+              table.insert(msg, string.format('Time: %.2fs | Errors: %d, Warnings: %d', secs, err_cnt, warn_cnt))
+              table.insert(msg, 'Cmd: ' .. cmdline)
+              local full = table.concat(msg, '\n')
+              if code == 0 then notify.info(full) else notify.err(full) end
+              if code == 0 then
+                local root = vim.fn.getcwd()
+                LAST_EXE[U.norm(root)] = exe
+              end
+            end)
             if opts.on_exit then pcall(opts.on_exit, code, exe) end
             done(code)
           end,
