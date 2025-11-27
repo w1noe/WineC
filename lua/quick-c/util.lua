@@ -144,6 +144,36 @@ function U.parse_diagnostics(lines)
       table.insert(items, it)
       goto continue
     end
+    -- Fallback: linker-style without type token: file:line: <message>
+    do
+      local f3, ln3, msg3 = l:match '^(.+):(%d+):%s*(.+)$'
+      if f3 and ln3 and msg3 then
+        local text = msg3
+        local lower = text:lower()
+        local is_err = false
+        if lower:find('undefined reference') or lower:find('multiple definition') or lower:find('unresolved external symbol') or lower:find('linker error') then
+          is_err = true
+        end
+        local it = {
+          filename = clean_path(f3),
+          lnum = tonumber(ln3),
+          col = 1,
+          text = text,
+          type = is_err and 'E' or 'W',
+        }
+        do
+          local ltxt = (it.text or ''):lower()
+          if it.type == 'E' then
+            if not ltxt:match('^%[error%]') then it.text = '[error] ' .. (it.text or '') end
+          else
+            if not ltxt:match('^%[warning%]') then it.text = '[warning] ' .. (it.text or '') end
+          end
+        end
+        if it.type == 'E' then has_error = true else has_warning = true end
+        table.insert(items, it)
+        goto continue
+      end
+    end
     ::continue::
   end
   return items, has_error, has_warning
