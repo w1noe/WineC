@@ -16,6 +16,7 @@ M._last_project_config_path = nil
 M._reload_timer = nil
 M._suppress_notice_until = 0 -- uv.now() deadline in ms
 M._autosave_timer = nil
+M._inited = false
 
 local function is_windows()
   return U.is_windows()
@@ -235,6 +236,7 @@ function M.setup(opts)
   recompute_config()
   -- mark setup done for auto-setup guard
   pcall(function() vim.g.quick_c_auto_setup_done = true end)
+  if not M._inited then
   vim.api.nvim_create_user_command('QuickCBuild', function(opts)
     local sources = opts.fargs and #opts.fargs > 0 and opts.fargs or nil
     if sources then
@@ -452,21 +454,21 @@ function M.setup(opts)
     end
     -- Fallback: run build directly
     build()
-  end, {})
+    end, {})
 
-  -- Debug: show effective config and detected project config path
-  vim.api.nvim_create_user_command('QuickCConfig', function()
-    local cfg = M.config
-    local ok, inspect = pcall(vim.inspect, cfg)
-    local lines = {}
-    table.insert(lines, 'Quick-c: Effective Config')
-    table.insert(lines, ok and inspect or '<inspect failed>')
-    local root = vim.fn.getcwd()
-    local p = PROJECT_CONFIG.find_project_config(root)
-    table.insert(lines, 'Project root: ' .. root)
-    table.insert(lines, 'Project config: ' .. (p or '<not found>'))
-    vim.notify(table.concat(lines, '\n'), vim.log.levels.INFO)
-  end, {})
+    -- Debug: show effective config and detected project config path
+    vim.api.nvim_create_user_command('QuickCConfig', function()
+      local cfg = M.config
+      local ok, inspect = pcall(vim.inspect, cfg)
+      local lines = {}
+      table.insert(lines, 'Quick-c: Effective Config')
+      table.insert(lines, ok and inspect or '<inspect failed>')
+      local root = vim.fn.getcwd()
+      local p = PROJECT_CONFIG.find_project_config(root)
+      table.insert(lines, 'Project root: ' .. root)
+      table.insert(lines, 'Project config: ' .. (p or '<not found>'))
+      vim.notify(table.concat(lines, '\n'), vim.log.levels.INFO)
+    end, {})
 
   local function schedule_recompute(ms)
     local uv = vim.loop
@@ -493,10 +495,12 @@ function M.setup(opts)
     end,
   })
 
-  -- Autosave
-  pcall(function()
-    AS.setup(M.config)
-  end)
+    -- Autosave
+    pcall(function()
+      AS.setup(M.config)
+    end)
+    M._inited = true
+  end
 
   -- Auto-reload when saving project config in current root
   pcall(vim.api.nvim_create_autocmd, 'BufWritePost', {
@@ -517,6 +521,13 @@ function M.setup(opts)
       end
     end,
   })
+
+    -- Autosave
+    pcall(function()
+      AS.setup(M.config)
+    end)
+    M._inited = true
+  end
 
   -- Prepare callbacks for keymaps respecting toggles
   local callbacks = {
