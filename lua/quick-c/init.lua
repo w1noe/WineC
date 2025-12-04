@@ -280,7 +280,7 @@ function M.setup(opts)
   end, {})
   vim.api.nvim_create_user_command('QuickCCompileDBGenDir', function(opts)
     local CC = require 'quick-c.cc'
-    local dir = table.concat(opts.fargs or {}, ' ')
+    local dir = (opts.args or '')
     if dir == '' then
       local ui = vim.ui or {}
       if ui.input then
@@ -294,7 +294,7 @@ function M.setup(opts)
     else
       CC.generate_for_dir(M.config, { err = notify_err, warn = notify_warn, info = notify_info }, dir)
     end
-  end, { nargs = '*' })
+  end, { nargs = '?', complete = 'dir' })
   vim.api.nvim_create_user_command('QuickCCompileDBGenSources', function()
     local ok_t, tel = pcall(require, 'quick-c.telescope')
     if ok_t and tel and tel.telescope_quickc_sources then
