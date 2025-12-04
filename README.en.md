@@ -163,6 +163,11 @@ If the current buffer is unnamed and modified, auto-jump from diagnostics is ski
 | Config | `QuickCCompileDB` | Apply compile_commands.json (generate into source dir) | — |
 |  | `QuickCCompileDBGen` | Generate compile_commands.json | — |
 |  | `QuickCCompileDBUse` | Use external compile_commands.json | — |
+| Compile DB | `QuickCCompileDB` | Run by compile_commands.mode (generate/use/cmake) | — |
+|  | `QuickCCompileDBGenProject` | Scan :pwd and generate for the whole project | — |
+|  | `QuickCCompileDBGenDir [dir]` | Generate for a specific directory | — |
+|  | `QuickCCompileDBGenSources` | Generate from multi-selected sources (Telescope) | — |
+|  | `QuickCCompileDBGenCMake` | Export via CMake and copy to outdir | — |
 |  | `QuickCCheck` | Validate configuration | — |
 |  | `QuickCHealth` | Health report | — |
 |  | `QuickCReload` | Reload configuration | — |
@@ -493,6 +498,21 @@ require('quick-c').setup({
   - `auto`: if a terminal is open, show a selector; otherwise use the default strategy (BetterTerm first, fallback to native)
   - `always`: always show the selector
   - `never`: always use the default strategy
+
+
+#### compile_commands generation (quick overview)
+
+- CMake export:
+  - set `compile_commands.mode = 'cmake'` or run `:QuickCCompileDBGenCMake`
+  - auto-adds `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`, copies from `cmake.build_dir` to `compile_commands.outdir`
+- Non-CMake projects:
+  - Scan project: `:QuickCCompileDBGenProject`
+  - Specific dir: `:QuickCCompileDBGenDir [dir]`
+  - Select sources: `:QuickCCompileDBGenSources` (Telescope)
+  - Simple path: with `mode = 'generate'`, `:QuickCCompileDB` also works
+  
+outdir options: `'source'` (multi-file/project prefers project root), `'cwd'`, relative, or absolute.
+
 
 ## 📚 Telescope preview notes
 

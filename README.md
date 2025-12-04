@@ -162,6 +162,7 @@ use({
 })
 ```
 
+
 插件会通过 `plugin/quick-c.lua` 在加载时自动调用 `require('quick-c').setup()`，你也可以在自己的配置中传入自定义项覆盖默认行为。
 
 ## 🚀 快速开始
@@ -222,6 +223,11 @@ use({
 |  | `QuickCHealth` | 环境健康检查 | — |
 |  | `QuickCReload` | 重新加载配置 | — |
 |  | `QuickCConfig` | 打印生效配置与项目路径 | — |
+| Compile DB | `QuickCCompileDB` | 按 compile_commands.mode 执行（generate/use/cmake） | — |
+|  | `QuickCCompileDBGenProject` | 扫描 :pwd 全项目生成 compile_commands.json | — |
+|  | `QuickCCompileDBGenDir [dir]` | 对指定目录生成 compile_commands.json | — |
+|  | `QuickCCompileDBGenSources` | 从源文件选择器（Telescope）多选后生成 | — |
+|  | `QuickCCompileDBGenCMake` | 使用 CMake 导出并复制到 outdir | — |
 
 注：
 - 当 `make.enabled = false` 时，不创建 Make 相关命令/键位。
@@ -402,6 +408,20 @@ require('quick-c').setup({
 - 以上键位均可通过 `setup({ keymaps = { ... } })` 自定义或禁用。
 - 插件设置键位时使用 `unique=true`，不会覆盖你已有的映射；如键位已被占用会跳过注入。
  - QuickCStop/QuickCRetry 仅作用于插件内部“单/多文件构建”任务队列；对 Make/CMake 流程不生效。
+
+#### compile_commands 生成方式（速览）
+
+- CMake 导出：
+  - `compile_commands.mode = 'cmake'`，或执行 `:QuickCCompileDBGenCMake`
+  - 自动追加 `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`，从 `cmake.build_dir` 复制到 `compile_commands.outdir`
+- 非 CMake 项目：
+  - 扫描项目：`:QuickCCompileDBGenProject`
+  - 指定目录：`:QuickCCompileDBGenDir [dir]`
+  - 多选源文件：`:QuickCCompileDBGenSources`（需 Telescope）
+  - 单/多文件基础：`compile_commands.mode = 'generate'` 时，`:QuickCCompileDB` 也可生成
+  
+outdir 可选：`'source'`（单文件目录，多文件/项目时优先写项目根以便 clangd 查找）、`'cwd'`、相对/绝对路径。
+
 
 ### 📚 Telescope 预览说明
 
