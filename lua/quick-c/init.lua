@@ -575,13 +575,6 @@ function M.setup(opts)
     end,
   })
 
-    -- Autosave
-    pcall(function()
-      AS.setup(M.config)
-    end)
-    M._inited = true
-  end
-
   -- Prepare callbacks for keymaps respecting toggles
   local callbacks = {
     build = build,
