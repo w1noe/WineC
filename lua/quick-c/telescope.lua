@@ -290,6 +290,7 @@ function M.telescope_make(
         pickers
           .new({}, {
             prompt_title = 'Make Targets (' .. cwd .. ')',
+            initial_mode = 'normal',
             finder = finders.new_table {
               results = { { display = '[No Make targets found]', kind = 'empty' } },
               entry_maker = function(e)
@@ -362,6 +363,7 @@ function M.telescope_make(
       pickers
         .new({}, {
           prompt_title = title .. ' (' .. cwd .. ')',
+          initial_mode = 'normal',
           finder = finders.new_table {
             results = entries,
             entry_maker = function(e)
