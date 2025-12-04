@@ -42,19 +42,8 @@ function T.run_in_betterterm(config, is_windows, cmd, notify_warn, notify_err, o
   local want_focus = (focus == true) and (opts.focus ~= false)
   local prev = vim.api.nvim_get_current_win()
   local prev_mode = (vim.api.nvim_get_mode and vim.api.nvim_get_mode().mode) or 'n'
-  -- Open terminal if requested by config (open_if_closed) or when focusing is desired.
-  -- Even when we don't want to steal focus, we still open the terminal to ensure the session exists,
-  -- then immediately restore previous window to avoid key leakage and focus steal.
-  if (open_first or focus) then
-    pcall(betterTerm.open, idx)
-  end
-  if not want_focus then
-    -- Restore immediately to avoid stealing focus
-    pcall(vim.api.nvim_set_current_win, prev)
-    if prev_mode:sub(1, 1) == 'n' then
-      pcall(vim.cmd, 'stopinsert')
-    end
-  end
+  -- Do not pre-open to avoid toggle-closing an already visible terminal window.
+  -- We will try to send first; if it fails, we may open; if focusing is desired, we'll try to focus an existing window.
   vim.defer_fn(function()
     local ok_send, err = pcall(betterTerm.send, cmd .. (is_windows() and '\r' or '\n'), idx)
     if not ok_send then
@@ -64,8 +53,34 @@ function T.run_in_betterterm(config, is_windows, cmd, notify_warn, notify_err, o
       end
       return
     end
-    -- Some versions of betterTerm may re-focus after open/send; if we don't want focus, restore again after send
-    if not want_focus then
+    -- Focus behavior after successful send
+    if want_focus then
+      -- Prefer focusing an existing terminal window to avoid toggle-close behavior
+      local terms = T.list_open_builtin_terminals()
+      if terms and #terms > 0 then
+        local last = terms[#terms]
+        pcall(vim.api.nvim_set_current_win, prev) -- ensure we have valid window context
+        vim.defer_fn(function()
+          pcall(function()
+            -- try to focus existing terminal window displaying this buffer
+            for _, win in ipairs(vim.api.nvim_list_wins()) do
+              if vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win) == last.bufnr then
+                pcall(vim.api.nvim_set_current_win, win)
+                return
+              end
+            end
+            -- not found: as a fallback, open via betterTerm (may create or bring to front)
+            pcall(betterTerm.open, idx)
+          end)
+        end, 60)
+      else
+        -- No terminal windows: open one now to show output
+        vim.defer_fn(function()
+          pcall(betterTerm.open, idx)
+        end, 60)
+      end
+    else
+      -- If not focusing, restore previous window to avoid stealing focus
       vim.defer_fn(function()
         pcall(vim.api.nvim_set_current_win, prev)
         if prev_mode:sub(1, 1) == 'n' then
@@ -78,9 +93,14 @@ function T.run_in_betterterm(config, is_windows, cmd, notify_warn, notify_err, o
 end
 
 function T.run_make_in_terminal(config, is_windows, cmdline, notify_warn, notify_err)
-  -- Auto-focus terminal when none is currently open; otherwise do not steal focus.
+  -- Decide focus policy:
+  -- - If betterTerm is enabled and focus_on_run ~= false, prefer focusing (honor user config).
+  -- - Otherwise fallback to legacy behavior: focus only when no builtin terminal is open.
   local open_terms = T.list_open_builtin_terminals()
-  local want_focus = (#open_terms == 0)
+  local bt_cfg = config.betterterm or {}
+  local prefer_bt = (bt_cfg.enabled ~= false)
+  local cfg_focus = (bt_cfg.focus_on_run ~= false)
+  local want_focus = (prefer_bt and cfg_focus) or (#open_terms == 0)
   if not T.run_in_betterterm(config, is_windows, cmdline, notify_warn, notify_err, { focus = want_focus }) then
     if not T.run_in_native_terminal(config, is_windows, cmdline, { focus = want_focus }) then
       notify_err 'Unable to run make: cannot open terminal'
@@ -170,52 +190,18 @@ function T.select_or_run_in_terminal(config, is_windows, cmdline, notify_warn, n
             actions.close(bufnr)
             local v = entry.value
             if v.kind == 'default' then
+              -- Use unified focusing/selection policy inside run_make_in_terminal
               T.run_make_in_terminal(config, is_windows, cmdline, notify_warn, notify_err)
-              do
-                local ok_bt, betterTerm = pcall(require, 'betterTerm')
-                if ok_bt and (config.betterterm and config.betterterm.enabled ~= false) then
-                  local idx = (config.betterterm and config.betterterm.index) or 0
-                  local focus_on_run = (config.betterterm and config.betterterm.focus_on_run) ~= false
-                  if focus_on_run then
-                    vim.defer_fn(function()
-                      pcall(betterTerm.open, idx)
-                    end, 120)
-                  end
-                else
-                  -- Focus a builtin terminal window after sending, to honor explicit user choice
-                  vim.defer_fn(function()
-                    local terms = T.list_open_builtin_terminals()
-                    if terms and #terms > 0 then
-                      -- pick the last one (most recently opened)
-                      local last = terms[#terms]
-                      pcall(open_builtin_terminal_window, config, last.bufnr)
-                    end
-                  end, 120)
-                end
-              end
             else
               local ok = T.send_to_builtin_terminal(is_windows, v.job, cmdline, { bufnr = v.bufnr, config = config })
               if not ok then
                 notify_warn 'Failed to send to selected terminal, using default strategy'
                 T.run_make_in_terminal(config, is_windows, cmdline, notify_warn, notify_err)
-                do
-                  local ok_bt, betterTerm = pcall(require, 'betterTerm')
-                  if ok_bt and (config.betterterm and config.betterterm.enabled ~= false) then
-                    local idx = (config.betterterm and config.betterterm.index) or 0
-                    local focus_on_run = (config.betterterm and config.betterterm.focus_on_run) ~= false
-                    if focus_on_run then
-                      vim.defer_fn(function()
-                        pcall(betterTerm.open, idx)
-                      end, 120)
-                    end
-                  end
-                end
+                return
               end
-              if ok then
-                vim.defer_fn(function()
-                  pcall(open_builtin_terminal_window, config, v.bufnr)
-                end, 120)
-              end
+              vim.defer_fn(function()
+                pcall(open_builtin_terminal_window, config, v.bufnr)
+              end, 120)
             end
           end
           map('i', '<CR>', choose)

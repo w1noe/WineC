@@ -2,6 +2,7 @@ local M = {}
 local U = require 'quick-c.util'
 local T = require 'quick-c.terminal'
 local LAST_ARGS = {}
+local LAST_TARGET = {}
 
 -- Enhanced quickfix Telescope: show detailed error preview on the right
 function M.telescope_quickfix(config)
@@ -289,6 +290,7 @@ function M.telescope_make(
         pickers
           .new({}, {
             prompt_title = 'Make Targets (' .. cwd .. ')',
+            initial_mode = 'normal',
             finder = finders.new_table {
               results = { { display = '[No Make targets found]', kind = 'empty' } },
               entry_maker = function(e)
@@ -320,6 +322,11 @@ function M.telescope_make(
       local function build_entries()
         local entries = {}
         table.insert(entries, { display = '[Custom args...]', kind = 'args' })
+        -- prepend last target quick entry if available for this cwd
+        local last = LAST_TARGET[cwd]
+        if type(last) == 'string' and last ~= '' then
+          table.insert(entries, { display = string.format('[Last target: %s]', last), kind = 'last', value = last })
+        end
         local list = {}
         if mktargets.prioritize_phony ~= false then
           local a, b = {}, {}
@@ -356,6 +363,7 @@ function M.telescope_make(
       pickers
         .new({}, {
           prompt_title = title .. ' (' .. cwd .. ')',
+          initial_mode = 'normal',
           finder = finders.new_table {
             results = entries,
             entry_maker = function(e)
@@ -531,6 +539,10 @@ function M.telescope_make(
               end
               local ui = vim.ui or {}
               if not ui.input then
+                -- remember last selected explicit target
+                if type(target) == 'string' and target ~= '' then
+                  LAST_TARGET[cwd] = target
+                end
                 make_run_in_cwd(target, cwd)
                 return
               end
@@ -551,8 +563,14 @@ function M.telescope_make(
                   else
                     cmd = string.format('%s -C %s %s %s', prog, shell_quote_path(cwd), target or '', arg)
                   end
+                  if type(target) == 'string' and target ~= '' then
+                    LAST_TARGET[cwd] = target
+                  end
                   run_make_in_terminal(cmd)
                 else
+                  if type(target) == 'string' and target ~= '' then
+                    LAST_TARGET[cwd] = target
+                  end
                   make_run_in_cwd(target, cwd)
                 end
               end)
@@ -596,10 +614,22 @@ function M.telescope_make(
                   run_make_in_terminal(cmd)
                 end)
                 return
+              elseif entry.kind == 'last' then
+                local target = entry.value
+                if mkargs.prompt ~= false then
+                  run_with_args(target)
+                else
+                  LAST_TARGET[cwd] = target
+                  make_run_in_cwd(target, cwd)
+                end
+                return
               end
               if mkargs.prompt ~= false then
                 run_with_args(entry.value)
               else
+                if type(entry.value) == 'string' and entry.value ~= '' then
+                  LAST_TARGET[cwd] = entry.value
+                end
                 make_run_in_cwd(entry.value, cwd)
               end
             end
