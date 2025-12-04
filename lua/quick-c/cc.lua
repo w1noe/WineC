@@ -1,4 +1,5 @@
 local U = require 'quick-c.util'
+local CM = require 'quick-c.cmake'
 
 local CC = {}
 
@@ -66,6 +67,10 @@ local function resolve_target_path(ccfg, source_dir)
   if not outdir or outdir == 'source' then
     return source_dir .. '/' .. filename
   end
+  if outdir == 'cwd' then
+    local cwd = vim.fn.getcwd()
+    return cwd .. '/' .. filename
+  end
   vim.fn.mkdir(outdir, 'p')
   return outdir .. '/' .. filename
 end
@@ -110,6 +115,49 @@ function CC.generate(config, notify)
   end
 end
 
+-- Generate compile_commands.json from a CMake project
+function CC.generate_from_cmake(config, notify)
+  local base = vim.fn.fnamemodify(vim.fn.expand '%:p', ':h')
+  CM.resolve_root_async(config, base, function(root)
+    if not root then
+      notify.warn 'CMake project root not found'
+      return
+    end
+    -- Make a shallow copy and ensure export flag
+    local cfg = vim.tbl_deep_extend('force', {}, config)
+    cfg.cmake = cfg.cmake or {}
+    cfg.cmake.configure = cfg.cmake.configure or {}
+    local extra = {}
+    for _, v in ipairs(cfg.cmake.configure.extra or {}) do table.insert(extra, v) end
+    local has_flag = false
+    for _, v in ipairs(extra) do
+      if tostring(v):match('CMAKE_EXPORT_COMPILE_COMMANDS=ON') then has_flag = true break end
+    end
+    if not has_flag then
+      table.insert(extra, '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON')
+    end
+    cfg.cmake.configure.extra = extra
+    CM.ensure_configured_async(cfg, root, function(ok, bdir)
+      if not ok then
+        notify.err 'CMake configuration failed (cannot export compile_commands)'
+        return
+      end
+      local src = (bdir .. '/compile_commands.json')
+      if vim.fn.filereadable(src) ~= 1 then
+        notify.err('Not found: ' .. src)
+        return
+      end
+      local ccfg = config.compile_commands or {}
+      local dst = resolve_target_path(ccfg, root)
+      if copy_file(src, dst) then
+        notify.info('Copied: ' .. src .. ' -> ' .. dst)
+      else
+        notify.err('Copy failed: ' .. dst)
+      end
+    end)
+  end)
+end
+
 function CC.use_external(config, notify)
   local ccfg = config.compile_commands or {}
   local src = ccfg.use_path
@@ -135,9 +183,107 @@ function CC.apply(config, notify)
   local ccfg = config.compile_commands or {}
   if ccfg.mode == 'use' then
     CC.use_external(config, notify)
+  elseif ccfg.mode == 'cmake' then
+    CC.generate_from_cmake(config, notify)
   else
     CC.generate(config, notify)
   end
+end
+
+-- Helper: detect ft from filename
+local function ft_from_file(path)
+  local ext = (path:match('%.([%w]+)$') or ''):lower()
+  if ext == 'c' then return 'c' end
+  if ext == 'cpp' or ext == 'cc' or ext == 'cxx' then return 'cpp' end
+  return 'c'
+end
+
+-- Non-CMake: generate for a given list of sources (multi-file)
+function CC.generate_for_sources(config, notify, sources)
+  sources = sources or {}
+  if type(sources) ~= 'table' or #sources == 0 then
+    notify.warn 'No sources selected'
+    return
+  end
+  local entries = {}
+  for _, src in ipairs(sources) do
+    local abs = vim.fn.fnamemodify(src, ':p')
+    if vim.fn.filereadable(abs) == 1 then
+      local ft = ft_from_file(abs)
+      local out = resolve_out_path(config, abs)
+      local cmd = build_compile_command(config, ft, abs, out)
+      if cmd then
+        table.insert(entries, {
+          directory = vim.fn.fnamemodify(abs, ':p:h'),
+          file = abs,
+          command = cmd,
+        })
+      end
+    end
+  end
+  if #entries == 0 then
+    notify.warn 'No valid sources to generate compile_commands'
+    return
+  end
+  local ccfg = config.compile_commands or {}
+  -- For multi-file/project, when outdir = 'source', prefer project root (cwd)
+  local dst = resolve_target_path({ outdir = (ccfg.outdir == 'source') and vim.fn.getcwd() or ccfg.outdir }, vim.fn.getcwd())
+  local ok = vim.fn.writefile({ vim.json.encode(entries) }, dst) == 0
+  if ok then
+    notify.info('Generated: ' .. dst .. ' (' .. tostring(#entries) .. ' entries)')
+  else
+    notify.err('Generation failed: ' .. dst)
+  end
+end
+
+-- Non-CMake: scan project for sources and generate
+function CC.generate_for_project(config, notify)
+  local cwd = vim.fn.getcwd()
+  local patterns = { '**/*.c', '**/*.cpp', '**/*.cc', '**/*.cxx' }
+  local seen, sources = {}, {}
+  for _, pat in ipairs(patterns) do
+    local list = vim.fn.glob(pat, true, true)
+    for _, f in ipairs(list) do
+      local p = vim.fn.fnamemodify(f, ':p')
+      if vim.fn.filereadable(p) == 1 and not seen[p] then
+        seen[p] = true
+        table.insert(sources, p)
+      end
+    end
+  end
+  if #sources == 0 then
+    notify.warn 'No C/C++ sources found under project root'
+    return
+  end
+  CC.generate_for_sources(config, notify, sources)
+end
+
+-- Non-CMake: generate for all sources under a specified directory
+function CC.generate_for_dir(config, notify, dir)
+  dir = dir or vim.fn.getcwd()
+  local uv = vim.loop
+  local st = uv.fs_stat(dir)
+  if not st or st.type ~= 'directory' then
+    notify.err('Not a directory: ' .. tostring(dir))
+    return
+  end
+  local patterns = { '**/*.c', '**/*.cpp', '**/*.cc', '**/*.cxx' }
+  local seen, sources = {}, {}
+  for _, pat in ipairs(patterns) do
+    local list = vim.fn.glob(vim.fn.fnamemodify(U.join(dir, pat), ':.') , true, true)
+    for _, f in ipairs(list) do
+      local p = vim.fn.fnamemodify(f, ':p')
+      if vim.fn.filereadable(p) == 1 and not seen[p] then
+        seen[p] = true
+        table.insert(sources, p)
+      end
+    end
+  end
+  if #sources == 0 then
+    notify.warn('No C/C++ sources found under: ' .. dir)
+    return
+  end
+  CC.generate_for_sources(config, notify, sources)
 end
 
 return CC

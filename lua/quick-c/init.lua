@@ -273,6 +273,40 @@ function M.setup(opts)
   vim.api.nvim_create_user_command('QuickCCompileDBUse', function()
     cc_use()
   end, {})
+  -- compile_commands helpers
+  vim.api.nvim_create_user_command('QuickCCompileDBGenProject', function()
+    local CC = require 'quick-c.cc'
+    CC.generate_for_project(M.config, { err = notify_err, warn = notify_warn, info = notify_info })
+  end, {})
+  vim.api.nvim_create_user_command('QuickCCompileDBGenDir', function(opts)
+    local CC = require 'quick-c.cc'
+    local dir = table.concat(opts.fargs or {}, ' ')
+    if dir == '' then
+      local ui = vim.ui or {}
+      if ui.input then
+        ui.input({ prompt = 'Directory: ', default = vim.fn.getcwd() }, function(input)
+          if not input or input == '' then return end
+          CC.generate_for_dir(M.config, { err = notify_err, warn = notify_warn, info = notify_info }, input)
+        end)
+      else
+        CC.generate_for_dir(M.config, { err = notify_err, warn = notify_warn, info = notify_info }, vim.fn.getcwd())
+      end
+    else
+      CC.generate_for_dir(M.config, { err = notify_err, warn = notify_warn, info = notify_info }, dir)
+    end
+  end, { nargs = '*' })
+  vim.api.nvim_create_user_command('QuickCCompileDBGenSources', function()
+    local ok_t, tel = pcall(require, 'quick-c.telescope')
+    if ok_t and tel and tel.telescope_quickc_sources then
+      tel.telescope_quickc_sources(M.config, { mode = 'generate_compile_commands' })
+      return
+    end
+    notify_warn 'Telescope not available; please use QuickCCompileDBGenDir/Project instead'
+  end, {})
+  vim.api.nvim_create_user_command('QuickCCompileDBGenCMake', function()
+    local CC = require 'quick-c.cc'
+    CC.generate_from_cmake(M.config, { err = notify_err, warn = notify_warn, info = notify_info })
+  end, {})
   vim.api.nvim_create_user_command('QuickCQuickfix', function()
     local cfg = M.config.diagnostics and M.config.diagnostics.quickfix or {}
     if cfg.use_telescope then
@@ -407,6 +441,25 @@ function M.setup(opts)
     add('Open Quickfix', function()
       pcall(vim.cmd, 'QuickCQuickfix')
     end)
+    -- Compile DB shortcuts
+    add('Compile DB (CMake export)', function()
+      local CC = require 'quick-c.cc'
+      CC.generate_from_cmake(M.config, { err = notify_err, warn = notify_warn, info = notify_info })
+    end)
+    add('Compile DB (Project scan)', function()
+      local CC = require 'quick-c.cc'
+      CC.generate_for_project(M.config, { err = notify_err, warn = notify_warn, info = notify_info })
+    end)
+    if M.config.telescope_enhance ~= false then
+      add('Compile DB (Select sources)', function()
+        local ok_t, tel = pcall(require, 'quick-c.telescope')
+        if ok_t and tel and tel.telescope_quickc_sources then
+          tel.telescope_quickc_sources(M.config, { mode = 'generate_compile_commands' })
+        else
+          notify_warn 'Telescope not available'
+        end
+      end)
+    end
 
     local use_telescope = (M.config.telescope_enhance ~= false) and pcall(require, 'telescope')
     if use_telescope then
