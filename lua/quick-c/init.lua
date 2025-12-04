@@ -16,6 +16,7 @@ M._last_project_config_path = nil
 M._reload_timer = nil
 M._suppress_notice_until = 0 -- uv.now() deadline in ms
 M._autosave_timer = nil
+M._inited = false
 
 local function is_windows()
   return U.is_windows()
@@ -222,11 +223,20 @@ local function recompute_config()
   else
     M._last_project_config_path = nil
   end
+  -- Normalize toggles: when telescope_enhance is false, turn off telescope-based quickfix
+  if M.config.telescope_enhance == false then
+    M.config.diagnostics = M.config.diagnostics or {}
+    M.config.diagnostics.quickfix = M.config.diagnostics.quickfix or {}
+    M.config.diagnostics.quickfix.use_telescope = false
+  end
 end
 
 function M.setup(opts)
   M.user_opts = opts or {}
   recompute_config()
+  -- mark setup done for auto-setup guard
+  pcall(function() vim.g.quick_c_auto_setup_done = true end)
+  if not M._inited then
   vim.api.nvim_create_user_command('QuickCBuild', function(opts)
     local sources = opts.fargs and #opts.fargs > 0 and opts.fargs or nil
     if sources then
@@ -263,6 +273,40 @@ function M.setup(opts)
   vim.api.nvim_create_user_command('QuickCCompileDBUse', function()
     cc_use()
   end, {})
+  -- compile_commands helpers
+  vim.api.nvim_create_user_command('QuickCCompileDBGenProject', function()
+    local CC = require 'quick-c.cc'
+    CC.generate_for_project(M.config, { err = notify_err, warn = notify_warn, info = notify_info })
+  end, {})
+  vim.api.nvim_create_user_command('QuickCCompileDBGenDir', function(opts)
+    local CC = require 'quick-c.cc'
+    local dir = (opts.args or '')
+    if dir == '' then
+      local ui = vim.ui or {}
+      if ui.input then
+        ui.input({ prompt = 'Directory: ', default = vim.fn.getcwd() }, function(input)
+          if not input or input == '' then return end
+          CC.generate_for_dir(M.config, { err = notify_err, warn = notify_warn, info = notify_info }, input)
+        end)
+      else
+        CC.generate_for_dir(M.config, { err = notify_err, warn = notify_warn, info = notify_info }, vim.fn.getcwd())
+      end
+    else
+      CC.generate_for_dir(M.config, { err = notify_err, warn = notify_warn, info = notify_info }, dir)
+    end
+  end, { nargs = '?', complete = 'dir' })
+  vim.api.nvim_create_user_command('QuickCCompileDBGenSources', function()
+    local ok_t, tel = pcall(require, 'quick-c.telescope')
+    if ok_t and tel and tel.telescope_quickc_sources then
+      tel.telescope_quickc_sources(M.config, { mode = 'generate_compile_commands' })
+      return
+    end
+    notify_warn 'Telescope not available; please use QuickCCompileDBGenDir/Project instead'
+  end, {})
+  vim.api.nvim_create_user_command('QuickCCompileDBGenCMake', function()
+    local CC = require 'quick-c.cc'
+    CC.generate_from_cmake(M.config, { err = notify_err, warn = notify_warn, info = notify_info })
+  end, {})
   vim.api.nvim_create_user_command('QuickCQuickfix', function()
     local cfg = M.config.diagnostics and M.config.diagnostics.quickfix or {}
     if cfg.use_telescope then
@@ -294,28 +338,37 @@ function M.setup(opts)
     local lvl = ok and vim.log.levels.INFO or vim.log.levels.WARN
     vim.notify(table.concat(lines, '\n'), lvl)
   end, {})
-  vim.api.nvim_create_user_command('QuickCMake', function()
-    telescope_make()
-  end, {})
-  vim.api.nvim_create_user_command('QuickCMakeRun', function(opts)
-    local target = table.concat(opts.fargs or {}, ' ')
-    make_run_target(target)
-  end, { nargs = '*' })
-  vim.api.nvim_create_user_command('QuickCMakeCmd', function()
-    make_run_custom_cmd()
-  end, {})
+  -- Make commands (respect make.enabled and telescope_enhance)
+  if not (M.config.make and M.config.make.enabled == false) then
+    if M.config.telescope_enhance ~= false then
+      vim.api.nvim_create_user_command('QuickCMake', function()
+        telescope_make()
+      end, {})
+    end
+    vim.api.nvim_create_user_command('QuickCMakeRun', function(opts)
+      local target = table.concat(opts.fargs or {}, ' ')
+      make_run_target(target)
+    end, { nargs = '*' })
+    vim.api.nvim_create_user_command('QuickCMakeCmd', function()
+      make_run_custom_cmd()
+    end, {})
+  end
 
-  -- CMake commands
-  vim.api.nvim_create_user_command('QuickCCMake', function()
-    require('quick-c.telescope').telescope_cmake(M.config)
-  end, {})
-  vim.api.nvim_create_user_command('QuickCCMakeRun', function(opts)
-    local target = table.concat(opts.fargs or {}, ' ')
-    cmake_run_target(target ~= '' and target or nil)
-  end, { nargs = '*' })
-  vim.api.nvim_create_user_command('QuickCCMakeConfigure', function()
-    cmake_configure()
-  end, {})
+  -- CMake commands (respect cmake.enabled and telescope_enhance)
+  if not (M.config.cmake and M.config.cmake.enabled == false) then
+    if M.config.telescope_enhance ~= false then
+      vim.api.nvim_create_user_command('QuickCCMake', function()
+        require('quick-c.telescope').telescope_cmake(M.config)
+      end, {})
+    end
+    vim.api.nvim_create_user_command('QuickCCMakeRun', function(opts)
+      local target = table.concat(opts.fargs or {}, ' ')
+      cmake_run_target(target ~= '' and target or nil)
+    end, { nargs = '*' })
+    vim.api.nvim_create_user_command('QuickCCMakeConfigure', function()
+      cmake_configure()
+    end, {})
+  end
 
   vim.api.nvim_create_user_command('QuickCReload', function()
     local uv = vim.loop
@@ -342,19 +395,133 @@ function M.setup(opts)
     end
   end, {})
 
-  -- Debug: show effective config and detected project config path
-  vim.api.nvim_create_user_command('QuickCConfig', function()
-    local cfg = M.config
-    local ok, inspect = pcall(vim.inspect, cfg)
-    local lines = {}
-    table.insert(lines, 'Quick-c: Effective Config')
-    table.insert(lines, ok and inspect or '<inspect failed>')
-    local root = vim.fn.getcwd()
-    local p = PROJECT_CONFIG.find_project_config(root)
-    table.insert(lines, 'Project root: ' .. root)
-    table.insert(lines, 'Project config: ' .. (p or '<not found>'))
-    vim.notify(table.concat(lines, '\n'), vim.log.levels.INFO)
-  end, {})
+  -- Unified entry: :QuickC
+  vim.api.nvim_create_user_command('QuickC', function()
+    local items = {}
+    local function add(label, fn)
+      table.insert(items, { label = label, fn = fn })
+    end
+    add('Build', function() build() end)
+    add('Run', function() run() end)
+    add('Build & Run', function() build_and_run() end)
+    add('Debug', function() debug_run() end)
+    if not (M.config.make and M.config.make.enabled == false) then
+      add('Make Targets', function()
+        if M.config.telescope_enhance ~= false then
+          telescope_make()
+        else
+          notify_warn('Telescope UI disabled; use :QuickCMakeRun or :QuickCMakeCmd')
+        end
+      end)
+    end
+    if not (M.config.cmake and M.config.cmake.enabled == false) then
+      add('CMake Targets', function()
+        if M.config.telescope_enhance ~= false then
+          local ok, tel = pcall(require, 'quick-c.telescope')
+          if ok and tel and tel.telescope_cmake then
+            tel.telescope_cmake(M.config)
+          else
+            notify_err('quick-c.telescope not available')
+          end
+        else
+          cmake_run_target(nil)
+        end
+      end)
+    end
+    if M.config.telescope_enhance ~= false then
+      add('Select Sources (Telescope)', function()
+        local ok, tel = pcall(require, 'quick-c.telescope')
+        if ok and tel and tel.telescope_quickc_sources then
+          tel.telescope_quickc_sources(M.config)
+        else
+          notify_err('quick-c.telescope not available')
+        end
+      end)
+    end
+    add('Open Quickfix', function()
+      pcall(vim.cmd, 'QuickCQuickfix')
+    end)
+    -- Compile DB shortcuts
+    add('Compile DB (CMake export)', function()
+      local CC = require 'quick-c.cc'
+      CC.generate_from_cmake(M.config, { err = notify_err, warn = notify_warn, info = notify_info })
+    end)
+    add('Compile DB (Project scan)', function()
+      local CC = require 'quick-c.cc'
+      CC.generate_for_project(M.config, { err = notify_err, warn = notify_warn, info = notify_info })
+    end)
+    if M.config.telescope_enhance ~= false then
+      add('Compile DB (Select sources)', function()
+        local ok_t, tel = pcall(require, 'quick-c.telescope')
+        if ok_t and tel and tel.telescope_quickc_sources then
+          tel.telescope_quickc_sources(M.config, { mode = 'generate_compile_commands' })
+        else
+          notify_warn 'Telescope not available'
+        end
+      end)
+    end
+
+    local use_telescope = (M.config.telescope_enhance ~= false) and pcall(require, 'telescope')
+    if use_telescope then
+      local pickers = require 'telescope.pickers'
+      local finders = require 'telescope.finders'
+      local conf = require('telescope.config').values
+      local entries = {}
+      for _, it in ipairs(items) do table.insert(entries, it) end
+      pickers
+        .new({}, {
+          prompt_title = 'Quick-c',
+          finder = finders.new_table {
+            results = entries,
+            entry_maker = function(e)
+              return { value = e, display = e.label, ordinal = e.label }
+            end,
+          },
+          sorter = conf.generic_sorter {},
+          attach_mappings = function(bufnr, map)
+            local actions = require 'telescope.actions'
+            local action_state = require 'telescope.actions.state'
+            local function choose(pbuf)
+              local entry = action_state.get_selected_entry()
+              actions.close(pbuf)
+              local v = entry and entry.value
+              if v and v.fn then v.fn() end
+            end
+            map('i', '<CR>', choose)
+            map('n', '<CR>', choose)
+            return true
+          end,
+        })
+        :find()
+      return
+    end
+    local ui = vim.ui or {}
+    if ui.select then
+      local labels = {}
+      for _, it in ipairs(items) do table.insert(labels, it.label) end
+      ui.select(labels, { prompt = 'Quick-c' }, function(choice)
+        if not choice then return end
+        for _, it in ipairs(items) do if it.label == choice then it.fn(); return end end
+      end)
+      return
+    end
+    -- Fallback: run build directly
+    build()
+    end, {})
+
+    -- Debug: show effective config and detected project config path
+    vim.api.nvim_create_user_command('QuickCConfig', function()
+      local cfg = M.config
+      local ok, inspect = pcall(vim.inspect, cfg)
+      local lines = {}
+      table.insert(lines, 'Quick-c: Effective Config')
+      table.insert(lines, ok and inspect or '<inspect failed>')
+      local root = vim.fn.getcwd()
+      local p = PROJECT_CONFIG.find_project_config(root)
+      table.insert(lines, 'Project root: ' .. root)
+      table.insert(lines, 'Project config: ' .. (p or '<not found>'))
+      vim.notify(table.concat(lines, '\n'), vim.log.levels.INFO)
+    end, {})
 
   local function schedule_recompute(ms)
     local uv = vim.loop
@@ -381,10 +548,12 @@ function M.setup(opts)
     end,
   })
 
-  -- Autosave
-  pcall(function()
-    AS.setup(M.config)
-  end)
+    -- Autosave
+    pcall(function()
+      AS.setup(M.config)
+    end)
+    M._inited = true
+  end
 
   -- Auto-reload when saving project config in current root
   pcall(vim.api.nvim_create_autocmd, 'BufWritePost', {
@@ -406,21 +575,16 @@ function M.setup(opts)
     end,
   })
 
-  require('quick-c.keys').setup(M.config, {
+  -- Prepare callbacks for keymaps respecting toggles
+  local callbacks = {
     build = build,
     run = run,
     build_and_run = build_and_run,
     debug = debug_run,
-    make = telescope_make,
-    cmake = function()
-      require('quick-c.telescope').telescope_cmake(M.config)
-    end,
-    cmake_run = function()
-      cmake_run_target(nil)
-    end,
-    cmake_configure = function()
-      cmake_configure()
-    end,
+    make = nil,
+    cmake = nil,
+    cmake_run = nil,
+    cmake_configure = nil,
     stop = function()
       if TASK.cancel_current() then
         notify_info 'Requested to cancel current task'
@@ -435,7 +599,25 @@ function M.setup(opts)
         notify_warn 'No task to retry'
       end
     end,
-  })
+  }
+  -- Enable Telescope-based callbacks only when allowed
+  if not (M.config.make and M.config.make.enabled == false) and M.config.telescope_enhance ~= false then
+    callbacks.make = telescope_make
+  end
+  if not (M.config.cmake and M.config.cmake.enabled == false) then
+    if M.config.telescope_enhance ~= false then
+      callbacks.cmake = function()
+        require('quick-c.telescope').telescope_cmake(M.config)
+      end
+    end
+    callbacks.cmake_run = function()
+      cmake_run_target(nil)
+    end
+    callbacks.cmake_configure = function()
+      cmake_configure()
+    end
+  end
+  require('quick-c.keys').setup(M.config, callbacks)
 end
 
 function M.status()

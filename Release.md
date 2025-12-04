@@ -1,5 +1,53 @@
 # Quick-c Release Notes
 
+## v1.6.0 (2025-12-04)
+
+### 新增
+- 编译数据库生成（compile_commands.json）能力全面扩展：
+  - 命令：
+    - `QuickCCompileDB`：按照 `compile_commands.mode` 统一入口（默认 generate）。
+    - `QuickCCompileDBGen`：强制“生成”当前文件的最小条目（非 CMake 项目便捷使用）。
+    - `QuickCCompileDBUse`：从 `compile_commands.use_path` 指定文件复制到目标位置。
+    - `QuickCCompileDBGenProject`：扫描项目根（`:pwd`）递归生成（多文件）。
+    - `QuickCCompileDBGenDir [dir]`：对指定目录递归生成（多文件）。
+    - `QuickCCompileDBGenSources`：通过 Telescope 多选源文件后批量生成（未安装 Telescope 时给出提示）。
+    - `QuickCCompileDBGenCMake`：自动追加 `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`，从 CMake 构建目录复制到目标位置。
+  - 目标位置策略（`compile_commands.outdir`）：`'source'`/`'cwd'`/自定义相对或绝对路径；多文件/项目生成时在 `'source'` 策略下也会优先写到项目根，便于 clangd 发现。
+- 初始化状态标记：避免命令重复注册与多次初始化带来的潜在问题。
+- 配置模块开关：可按需关闭 Telescope/Make/CMake 等增强，便于与其他生态插件协作。
+
+### 改进
+- 路径与搜索稳健性：
+  - 目录路径做绝对化与分隔符规范化（Windows 下统一处理 `\\` 与含空格路径）。
+  - 目录/项目扫描采用 `glob`/`globpath` 递归收集 `**/*.c/**.cpp/**.cc/**.cxx`，并对重复条目去重。
+  - 生成目标路径会自动 `mkdir -p`。
+
+### 修复
+- `QuickCCompileDBGenDir` 的参数处理：
+  - 现使用 `opts.args`，并将 `nargs='?'` + `complete='dir'`，支持含空格目录与目录补全；避免以空格拼接 `fargs` 导致的解析错误。
+- 清理与合并初始化路径：移除旧的自动保存初始化残留，避免潜在重复初始化或与其他功能冲突。
+
+### 使用建议
+1) 非 CMake 项目一次性生成：在项目根执行 `:QuickCCompileDBGenProject`。
+2) 指定目录生成：`:QuickCCompileDBGenDir "C:/path with space/src"` 或无参执行后在输入框中填写目录。
+3) 借用 CMake 导出：`:QuickCCompileDBGenCMake`；或将 `compile_commands.mode = 'cmake'` 后直接 `:QuickCCompileDB`。
+4) 多文件自选：安装 Telescope 后使用 `:QuickCCompileDBGenSources` 多选源文件并生成。
+
+### 验证建议
+1) Windows 下使用包含空格的目录，执行 `:QuickCCompileDBGenDir` 并确认生成成功，`compile_commands.json` 路径正确。
+2) 在非 CMake 项目根执行 `:QuickCCompileDBGenProject`，应生成包含多条目且位于项目根的 `compile_commands.json`。
+3) 在含 CMakeLists.txt 的项目中执行 `:QuickCCompileDBGenCMake`，若此前未配置，将自动追加导出参数并成功复制文件。
+
+### 兼容性
+- 无破坏性变更；默认行为与既有用法兼容。
+- 多文件/项目生成在 `'source'` 策略下会优先写到项目根，便于 clangd 自动发现（单文件生成仍写到当前源文件目录）。
+
+### 迁移指南
+- 无需迁移。如你依赖旧的目录生成命令，请直接使用新的 `QuickCCompileDBGenDir`（现支持含空格目录与补全）。
+
+### 文档
+- 中英文 README 已同步更新新的命令、配置说明与典型使用场景。
+
 ## v1.5.15 (2025-12-04)
 
 ### 新增

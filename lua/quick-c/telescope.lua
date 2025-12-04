@@ -929,7 +929,7 @@ function M.telescope_cmake(config)
 end
 
 -- Telescope picker for Quick-c: select multiple C/C++ sources, then choose action
-function M.telescope_quickc_sources(config)
+function M.telescope_quickc_sources(config, opts)
   local ok_t = pcall(require, 'telescope')
   if not ok_t then
     vim.notify('telescope.nvim not found', vim.log.levels.ERROR)
@@ -999,6 +999,13 @@ function M.telescope_quickc_sources(config)
             return
           end
           local ui = vim.ui or {}
+          local mode = (opts and opts.mode) or 'default'
+          if mode == 'generate_compile_commands' then
+            local CC = require 'quick-c.cc'
+            CC.generate_for_sources(config, { err = U.notify_err, warn = U.notify_warn, info = U.notify_info }, srcs)
+            return
+          end
+          -- default actions: Build / Run / Build & Run
           local items = {
             {
               name = 'Build',

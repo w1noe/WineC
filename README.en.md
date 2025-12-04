@@ -1,4 +1,19 @@
 <div align="center"><p>
+Note:
+- When `make.enabled = false`, Make-related commands/keymaps are not created.
+- When `cmake.enabled = false`, CMake-related commands/keymaps are not created.
+- When `telescope_enhance = false`, Quickfix prefers native lists; Telescope-based pickers are not exposed.
+
+## 🤝 Coexistence with cmake-tools.nvim / overseer.nvim
+
+- To use cmake-tools as your primary CMake UI, disable Quick-c CMake/Telescope layers:
+  - `cmake.enabled = false`
+  - `telescope_enhance = false` (optional: keep Quickfix native and avoid Telescope pickers)
+- To use overseer as the task runner while keeping Quick-c single-file build/run:
+  - `make.enabled = false` (use overseer tasks for Make)
+  - Keep Quick-c core: build/run/debug for single or multi-file still work.
+- Keymaps respect these toggles; existing mappings won't be injected when the feature is disabled.
+
     <a href="https://github.com/AuroBreeze/quick-c/releases/latest">
       <img alt="Latest release" src="https://img.shields.io/github/v/release/AuroBreeze/quick-c?style=for-the-badge&logo=starship&color=C9CBFF&logoColor=D9E0EE&labelColor=302D41&include_prerelease&sort=semver" />
     </a>
@@ -25,12 +40,53 @@
 
 # Quick-c
 
-> [!IMPORTANT]
-> This document is not synchronized with the Chinese document and may lag behind the Chinese document.
->
-> I would be very grateful if you could translate or correct errors in this document.
+All‑in‑one C/C++ workflow for Neovim: one‑key Build/Run/Debug (async, non‑blocking), first‑class Windows/Linux/macOS support, Make/CMake target pickers, and enhanced Quickfix/Telescope integration.
 
-Feature-rich yet lightweight Neovim plugin for C/C++: one-key build, run, and debug for the current file. Works on Windows, Linux, and macOS; integrates with BetterTerm and the built-in terminal. Fully asynchronous and non-blocking to Neovim's main thread.
+## Why Quick-c
+
+- ⚡️ **Zero-setup Build/Run/Debug** for single or multiple sources; remembers output names.
+- 🧰 **Make & CMake pickers** with previews and jump-to-definition for targets.
+- 🪟 **Windows-friendly**: PowerShell quoting, MSVC `cl` support, and robust path handling.
+- 🔭 **Telescope-first UX**: enhanced Quickfix preview with message and source context.
+- 🧠 **Async, non-blocking**: never freezes Neovim; smart caches invalidate on file changes.
+
+## 60‑second Quick Start
+
+Install (lazy.nvim):
+
+```lua
+{
+  "AuroBreeze/quick-c",
+  ft = { "c", "cpp" },
+  config = function()
+    require("quick-c").setup()
+  end,
+}
+```
+
+Use:
+
+- `<leader>cqb` → build current file
+- `<leader>cqr` → run last build
+- `<leader>cqR` → build & run
+- `<leader>cqD` → debug (codelldb + nvim-dap)
+- `<leader>cqS` → Telescope source picker (multi-select)
+
+Optional: commands
+- `:QuickCBuild` · `:QuickCRun` · `:QuickCBR` · `:QuickCDebug`
+
+## Why Quick-c vs alternatives
+
+| Capability | Quick-c | compiler.nvim | cmake-tools.nvim | overseer.nvim |
+| --- | --- | --- | --- | --- |
+| Scope | C/C++ build/run/debug with Make/CMake helpers | Multi-language compile/run helpers | CMake project integration for C/C++ | General task runner/executor |
+| Single-file Build/Run | Built-in, async, remembers output name | Built-in (multi-language) | Not focused on single-file | Via tasks (manual config) |
+| Multi-file Build | Built-in (select sources or CLI) | Limited by language config | Handled by CMake project | Via tasks (manual) |
+| Make Targets Picker | Built-in Telescope picker + preview + jump-to-definition | Not primary focus | Not primary focus | Possible via custom tasks |
+| CMake Targets/Build | Built-in target picker, configure (-S/-B), view both/quickfix/terminal | — | Primary feature set | Possible (requires tasks) |
+| Quickfix Enhancements | Enhanced Telescope quickfix with message + code context | Varies by compiler output | Uses CMake output; quickfix not the focus | Depends on task output parsing |
+| Windows Details | PowerShell quoting, MSVC `cl` path, robust path handling | Varies by setup | Supports CMake/VS env; single-file run not core | Depends on user-defined commands |
+| One-plugin Workflow | Single entry for single-file/Make/CMake/debug | Single-file oriented | Project (CMake) oriented | Meta-runner; pairs with build plugins |
 
 ## ✨ Features
 
@@ -107,6 +163,11 @@ If the current buffer is unnamed and modified, auto-jump from diagnostics is ski
 | Config | `QuickCCompileDB` | Apply compile_commands.json (generate into source dir) | — |
 |  | `QuickCCompileDBGen` | Generate compile_commands.json | — |
 |  | `QuickCCompileDBUse` | Use external compile_commands.json | — |
+| Compile DB | `QuickCCompileDB` | Run by compile_commands.mode (generate/use/cmake) | — |
+|  | `QuickCCompileDBGenProject` | Scan :pwd and generate for the whole project | — |
+|  | `QuickCCompileDBGenDir [dir]` | Generate for a specific directory | — |
+|  | `QuickCCompileDBGenSources` | Generate from multi-selected sources (Telescope) | — |
+|  | `QuickCCompileDBGenCMake` | Export via CMake and copy to outdir | — |
 |  | `QuickCCheck` | Validate configuration | — |
 |  | `QuickCHealth` | Health report | — |
 |  | `QuickCReload` | Reload configuration | — |
@@ -265,6 +326,10 @@ Minimal example:
 
 ```lua
 require('quick-c').setup({
+  -- Optional modules: turn off to avoid overlap with other plugins
+  telescope_enhance = true,      -- disable to turn off built-in Telescope UIs (pickers/quickfix preview)
+  make = { enabled = true },     -- disable to hide Make commands/keymaps
+  cmake = { enabled = true },    -- disable to hide CMake commands/keymaps (pickers/build/configure)
   outdir = 'source',
   toolchain = {
     windows = { c = { 'gcc', 'cl' }, cpp = { 'g++', 'cl' } },
@@ -433,6 +498,21 @@ require('quick-c').setup({
   - `auto`: if a terminal is open, show a selector; otherwise use the default strategy (BetterTerm first, fallback to native)
   - `always`: always show the selector
   - `never`: always use the default strategy
+
+
+#### compile_commands generation (quick overview)
+
+- CMake export:
+  - set `compile_commands.mode = 'cmake'` or run `:QuickCCompileDBGenCMake`
+  - auto-adds `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`, copies from `cmake.build_dir` to `compile_commands.outdir`
+- Non-CMake projects:
+  - Scan project: `:QuickCCompileDBGenProject`
+  - Specific dir: `:QuickCCompileDBGenDir [dir]`
+  - Select sources: `:QuickCCompileDBGenSources` (Telescope)
+  - Simple path: with `mode = 'generate'`, `:QuickCCompileDB` also works
+  
+outdir options: `'source'` (multi-file/project prefers project root), `'cwd'`, relative, or absolute.
+
 
 ## 📚 Telescope preview notes
 

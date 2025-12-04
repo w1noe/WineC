@@ -1,6 +1,9 @@
 local C = {}
 
 C.defaults = {
+  -- 是否启用插件内置的 Telescope 增强（目标选择器、源文件选择器、quickfix 增强等）
+  -- 设为 false 可与 cmake-tools/overseer 等生态避免重叠
+  telescope_enhance = true,
   -- outdir 用于决定可执行文件与临时产物的输出位置：
   -- - "source": 写入到“当前源文件所在目录”（默认）
   -- - 其他字符串：自定义目录
@@ -44,9 +47,24 @@ C.defaults = {
   },
   -- compile_commands.json 相关配置
   compile_commands = {
-    -- mode = 'generate' | 'use'
+    -- mode:
+    --   'generate' : 按当前工具链/参数为单/多文件生成最小 compile_commands（适合非 CMake 项目）
+    --   'use'      : 从 use_path 指定的文件复制到 outdir
+    --   'cmake'    : 使用 CMake 导出（自动追加 -DCMAKE_EXPORT_COMPILE_COMMANDS=ON），
+    --                从 cmake.build_dir/compile_commands.json 复制到 outdir
+    -- 说明：
+    --   - 非 CMake 项目的一次性批量生成，建议使用命令：
+    --       :QuickCCompileDBGenProject   （扫描 :pwd 全项目）
+    --       :QuickCCompileDBGenDir [dir] （指定目录）
+    --       :QuickCCompileDBGenSources   （Telescope 多选源文件）
+    --   - 仅借用 CMake 导出（即使平时用 make）：
+    --       :QuickCCompileDBGenCMake 或将 mode 设为 'cmake' 后 :QuickCCompileDB
     mode = 'generate',
-    -- 生成或复制的目标输出目录：'source' 表示放在当前源文件目录
+    -- outdir：生成/复制的目标位置
+    --   'source'  : 写到“当前源文件目录”。当为多文件/项目生成时，内部会优先写到项目根（便于 clangd 发现）
+    --   'cwd'     : 直接写到当前工作目录（项目根）
+    --   相对路径 : 相对 :pwd
+    --   绝对路径 : 例如 'C:/proj/compile_commands'
     outdir = 'source',
     -- 当 mode = 'use' 时，从此路径复制 compile_commands.json
     use_path = nil,

@@ -33,6 +33,52 @@
 
 <a href="https://deepwiki.com/AuroBreeze/quick-c"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
 
+## 为什么选 Quick-c
+
+- ⚡️ **零配置即可 Build/Run/Debug**，支持单文件与多文件，输出名有记忆。
+- 🧰 **Make & CMake 选择器** 自带预览与“跳转到目标定义”。
+- 🪟 **Windows 友好**：PowerShell 引号处理、MSVC `cl` 支持、路径兼容性细节完善。
+- 🔭 **Telescope 优先的体验**：增强版 Quickfix 右侧展示信息与源码上下文。
+- 🧠 **全程异步不阻塞**：不会卡住 Neovim；文件变更触发智能失效与缓存更新。
+
+## 60 秒快速上手
+
+安装（lazy.nvim）：
+
+```lua
+{
+  "AuroBreeze/quick-c",
+  ft = { "c", "cpp" },
+  config = function()
+    require("quick-c").setup()
+  end,
+}
+```
+
+使用：
+
+- `<leader>cqb` → 构建当前文件
+- `<leader>cqr` → 运行最近构建
+- `<leader>cqR` → 构建并运行
+- `<leader>cqD` → 调试（codelldb + nvim-dap）
+- `<leader>cqS` → 使用 Telescope 多选源文件
+
+可选：使用命令
+- `:QuickCBuild` · `:QuickCRun` · `:QuickCBR` · `:QuickCDebug`
+
+## 为何选择 Quick-c vs 替代方案
+
+| 能力 | Quick-c | compiler.nvim | cmake-tools.nvim | overseer.nvim |
+| --- | --- | --- | --- | --- |
+| 范围 | 面向 C/C++ 的构建/运行/调试，含 Make/CMake 辅助 | 多语言编译/运行辅助 | 面向 C/C++ 的 CMake 项目集成 | 通用任务运行器/调度器 |
+| 单文件构建/运行 | 内置、异步、输出名有记忆 | 内置（多语言） | 非单文件场景优先 | 通过任务实现（需手动配置） |
+| 多文件构建 | 内置（Telescope 多选或命令行传参） | 受语言配置限制 | 交由 CMake 项目处理 | 通过任务实现（需手动配置） |
+| Make 目标选择器 | 内置 Telescope 选择器 + 预览 + 跳转到定义 | 非主要关注点 | 非主要关注点 | 可通过自定义任务实现 |
+| CMake 目标/构建 | 内置目标选择、配置（-S/-B）、视图 both/quickfix/terminal | — | 核心功能 | 可实现（需自定义任务） |
+| Quickfix 增强 | 增强版 Telescope quickfix（消息 + 代码上下文） | 随编译器输出而异 | 聚焦 CMake 输出；quickfix 非核心 | 依赖任务输出解析 |
+| Windows 细节 | PowerShell 引号、MSVC `cl`、路径兼容细节完善 | 取决于个人配置 | 支持 CMake/VS 环境；单文件运行非核心 | 取决于用户命令实现 |
+| 单插件工作流 | 单入口覆盖单/多文件、Make、CMake、调试 | 偏单文件 | 偏项目（CMake） | 元运行器；常与构建插件配合 |
+
 ## ✨ 特性
 
  - 🚀 **一键构建/运行（异步）**：`QuickCBuild`、`QuickCRun`、`QuickCBR`（构建并运行）
@@ -116,6 +162,7 @@ use({
 })
 ```
 
+
 插件会通过 `plugin/quick-c.lua` 在加载时自动调用 `require('quick-c').setup()`，你也可以在自己的配置中传入自定义项覆盖默认行为。
 
 ## 🚀 快速开始
@@ -176,6 +223,26 @@ use({
 |  | `QuickCHealth` | 环境健康检查 | — |
 |  | `QuickCReload` | 重新加载配置 | — |
 |  | `QuickCConfig` | 打印生效配置与项目路径 | — |
+| Compile DB | `QuickCCompileDB` | 按 compile_commands.mode 执行（generate/use/cmake） | — |
+|  | `QuickCCompileDBGenProject` | 扫描 :pwd 全项目生成 compile_commands.json | — |
+|  | `QuickCCompileDBGenDir [dir]` | 对指定目录生成 compile_commands.json | — |
+|  | `QuickCCompileDBGenSources` | 从源文件选择器（Telescope）多选后生成 | — |
+|  | `QuickCCompileDBGenCMake` | 使用 CMake 导出并复制到 outdir | — |
+
+注：
+- 当 `make.enabled = false` 时，不创建 Make 相关命令/键位。
+- 当 `cmake.enabled = false` 时，不创建 CMake 相关命令/键位。
+- 当 `telescope_enhance = false` 时，Quickfix 优先使用原生命令，且不提供内置 Telescope 选择器。
+
+## 🤝 与 cmake-tools.nvim / overseer.nvim 协作
+
+- 若希望以 cmake-tools 为主的 CMake 交互界面：
+  - 将 `cmake.enabled = false`
+  - 可选：`telescope_enhance = false`（保持 quickfix 原生，避免 Telescope 选择器）
+- 若希望以 overseer 作为任务运行器，同时保留 quick-c 的单/多文件 Build/Run：
+  - 将 `make.enabled = false`（使用 overseer 任务来执行 make）
+  - quick-c 的单/多文件 Build/Run/Debug 仍可独立使用。
+- 键位会遵循这些开关；被关闭的功能不会注入默认映射。
 
 ## ⚙️ 配置
 
@@ -218,6 +285,10 @@ Quick-c 支持多级配置，优先级从高到低为：
 
 ```lua
 require("quick-c").setup({
+  -- 可选模块：与其他插件（cmake-tools/overseer）共存时，可关闭以避免重叠
+  telescope_enhance = true,      -- 设为 false 关闭内置 Telescope 增强（选择器/quickfix 预览）
+  make = { enabled = true },     -- 设为 false 不注入 Make 相关命令/键位
+  cmake = { enabled = true },    -- 设为 false 不注入 CMake 相关命令/键位（目标/构建/配置）
   outdir = "source", -- 或自定义路径，如 vim.fn.stdpath("data") .. "/quick-c-bin"
   toolchain = {
     windows = { c = { "gcc", "cl" }, cpp = { "g++", "cl" } },
@@ -337,6 +408,20 @@ require('quick-c').setup({
 - 以上键位均可通过 `setup({ keymaps = { ... } })` 自定义或禁用。
 - 插件设置键位时使用 `unique=true`，不会覆盖你已有的映射；如键位已被占用会跳过注入。
  - QuickCStop/QuickCRetry 仅作用于插件内部“单/多文件构建”任务队列；对 Make/CMake 流程不生效。
+
+#### compile_commands 生成方式（速览）
+
+- CMake 导出：
+  - `compile_commands.mode = 'cmake'`，或执行 `:QuickCCompileDBGenCMake`
+  - 自动追加 `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`，从 `cmake.build_dir` 复制到 `compile_commands.outdir`
+- 非 CMake 项目：
+  - 扫描项目：`:QuickCCompileDBGenProject`
+  - 指定目录：`:QuickCCompileDBGenDir [dir]`
+  - 多选源文件：`:QuickCCompileDBGenSources`（需 Telescope）
+  - 单/多文件基础：`compile_commands.mode = 'generate'` 时，`:QuickCCompileDB` 也可生成
+  
+outdir 可选：`'source'`（单文件目录，多文件/项目时优先写项目根以便 clangd 查找）、`'cwd'`、相对/绝对路径。
+
 
 ### 📚 Telescope 预览说明
 
