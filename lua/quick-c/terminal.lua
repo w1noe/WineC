@@ -197,22 +197,11 @@ function T.select_or_run_in_terminal(config, is_windows, cmdline, notify_warn, n
               if not ok then
                 notify_warn 'Failed to send to selected terminal, using default strategy'
                 T.run_make_in_terminal(config, is_windows, cmdline, notify_warn, notify_err)
-                  if ok_bt and (config.betterterm and config.betterterm.enabled ~= false) then
-                    local idx = (config.betterterm and config.betterterm.index) or 0
-                    local focus_on_run = (config.betterterm and config.betterterm.focus_on_run) ~= false
-                    if focus_on_run then
-                      vim.defer_fn(function()
-                        pcall(betterTerm.open, idx)
-                      end, 120)
-                    end
-                  end
-                end
+                return
               end
-              if ok then
-                vim.defer_fn(function()
-                  pcall(open_builtin_terminal_window, config, v.bufnr)
-                end, 120)
-              end
+              vim.defer_fn(function()
+                pcall(open_builtin_terminal_window, config, v.bufnr)
+              end, 120)
             end
           end
           map('i', '<CR>', choose)
