@@ -261,6 +261,9 @@ end
 -- Non-CMake: generate for all sources under a specified directory
 function CC.generate_for_dir(config, notify, dir)
   dir = dir or vim.fn.getcwd()
+  -- Normalize directory path for Windows and remove trailing separators
+  dir = vim.fn.fnamemodify(dir, ':p')
+  dir = (dir:gsub('\\', '/'):gsub('/+$', ''))
   local uv = vim.loop
   local st = uv.fs_stat(dir)
   if not st or st.type ~= 'directory' then
@@ -270,7 +273,8 @@ function CC.generate_for_dir(config, notify, dir)
   local patterns = { '**/*.c', '**/*.cpp', '**/*.cc', '**/*.cxx' }
   local seen, sources = {}, {}
   for _, pat in ipairs(patterns) do
-    local list = vim.fn.glob(vim.fn.fnamemodify(U.join(dir, pat), ':.') , true, true)
+    -- Use globpath to search inside the specified directory recursively
+    local list = vim.fn.globpath(dir, pat, true, true)
     for _, f in ipairs(list) do
       local p = vim.fn.fnamemodify(f, ':p')
       if vim.fn.filereadable(p) == 1 and not seen[p] then
