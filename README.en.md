@@ -25,12 +25,53 @@
 
 # Quick-c
 
-> [!IMPORTANT]
-> This document is not synchronized with the Chinese document and may lag behind the Chinese document.
->
-> I would be very grateful if you could translate or correct errors in this document.
+All‑in‑one C/C++ workflow for Neovim: one‑key Build/Run/Debug (async, non‑blocking), first‑class Windows/Linux/macOS support, Make/CMake target pickers, and enhanced Quickfix/Telescope integration.
 
-Feature-rich yet lightweight Neovim plugin for C/C++: one-key build, run, and debug for the current file. Works on Windows, Linux, and macOS; integrates with BetterTerm and the built-in terminal. Fully asynchronous and non-blocking to Neovim's main thread.
+## Why Quick-c
+
+- ⚡️ **Zero-setup Build/Run/Debug** for single or multiple sources; remembers output names.
+- 🧰 **Make & CMake pickers** with previews and jump-to-definition for targets.
+- 🪟 **Windows-friendly**: PowerShell quoting, MSVC `cl` support, and robust path handling.
+- 🔭 **Telescope-first UX**: enhanced Quickfix preview with message and source context.
+- 🧠 **Async, non-blocking**: never freezes Neovim; smart caches invalidate on file changes.
+
+## 60‑second Quick Start
+
+Install (lazy.nvim):
+
+```lua
+{
+  "AuroBreeze/quick-c",
+  ft = { "c", "cpp" },
+  config = function()
+    require("quick-c").setup()
+  end,
+}
+```
+
+Use:
+
+- `<leader>cqb` → build current file
+- `<leader>cqr` → run last build
+- `<leader>cqR` → build & run
+- `<leader>cqD` → debug (codelldb + nvim-dap)
+- `<leader>cqS` → Telescope source picker (multi-select)
+
+Optional: commands
+- `:QuickCBuild` · `:QuickCRun` · `:QuickCBR` · `:QuickCDebug`
+
+## Why Quick-c vs alternatives
+
+| Capability | Quick-c | compiler.nvim | cmake-tools.nvim | overseer.nvim |
+| --- | --- | --- | --- | --- |
+| Scope | C/C++ build/run/debug with Make/CMake helpers | Multi-language compile/run helpers | CMake project integration for C/C++ | General task runner/executor |
+| Single-file Build/Run | Built-in, async, remembers output name | Built-in (multi-language) | Not focused on single-file | Via tasks (manual config) |
+| Multi-file Build | Built-in (select sources or CLI) | Limited by language config | Handled by CMake project | Via tasks (manual) |
+| Make Targets Picker | Built-in Telescope picker + preview + jump-to-definition | Not primary focus | Not primary focus | Possible via custom tasks |
+| CMake Targets/Build | Built-in target picker, configure (-S/-B), view both/quickfix/terminal | — | Primary feature set | Possible (requires tasks) |
+| Quickfix Enhancements | Enhanced Telescope quickfix with message + code context | Varies by compiler output | Uses CMake output; quickfix not the focus | Depends on task output parsing |
+| Windows Details | PowerShell quoting, MSVC `cl` path, robust path handling | Varies by setup | Supports CMake/VS env; single-file run not core | Depends on user-defined commands |
+| One-plugin Workflow | Single entry for single-file/Make/CMake/debug | Single-file oriented | Project (CMake) oriented | Meta-runner; pairs with build plugins |
 
 ## ✨ Features
 

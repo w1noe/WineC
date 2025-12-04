@@ -33,6 +33,52 @@
 
 <a href="https://deepwiki.com/AuroBreeze/quick-c"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
 
+## 为什么选 Quick-c
+
+- ⚡️ **零配置即可 Build/Run/Debug**，支持单文件与多文件，输出名有记忆。
+- 🧰 **Make & CMake 选择器** 自带预览与“跳转到目标定义”。
+- 🪟 **Windows 友好**：PowerShell 引号处理、MSVC `cl` 支持、路径兼容性细节完善。
+- 🔭 **Telescope 优先的体验**：增强版 Quickfix 右侧展示信息与源码上下文。
+- 🧠 **全程异步不阻塞**：不会卡住 Neovim；文件变更触发智能失效与缓存更新。
+
+## 60 秒快速上手
+
+安装（lazy.nvim）：
+
+```lua
+{
+  "AuroBreeze/quick-c",
+  ft = { "c", "cpp" },
+  config = function()
+    require("quick-c").setup()
+  end,
+}
+```
+
+使用：
+
+- `<leader>cqb` → 构建当前文件
+- `<leader>cqr` → 运行最近构建
+- `<leader>cqR` → 构建并运行
+- `<leader>cqD` → 调试（codelldb + nvim-dap）
+- `<leader>cqS` → 使用 Telescope 多选源文件
+
+可选：使用命令
+- `:QuickCBuild` · `:QuickCRun` · `:QuickCBR` · `:QuickCDebug`
+
+## 为何选择 Quick-c vs 替代方案
+
+| 能力 | Quick-c | compiler.nvim | cmake-tools.nvim | overseer.nvim |
+| --- | --- | --- | --- | --- |
+| 范围 | 面向 C/C++ 的构建/运行/调试，含 Make/CMake 辅助 | 多语言编译/运行辅助 | 面向 C/C++ 的 CMake 项目集成 | 通用任务运行器/调度器 |
+| 单文件构建/运行 | 内置、异步、输出名有记忆 | 内置（多语言） | 非单文件场景优先 | 通过任务实现（需手动配置） |
+| 多文件构建 | 内置（Telescope 多选或命令行传参） | 受语言配置限制 | 交由 CMake 项目处理 | 通过任务实现（需手动配置） |
+| Make 目标选择器 | 内置 Telescope 选择器 + 预览 + 跳转到定义 | 非主要关注点 | 非主要关注点 | 可通过自定义任务实现 |
+| CMake 目标/构建 | 内置目标选择、配置（-S/-B）、视图 both/quickfix/terminal | — | 核心功能 | 可实现（需自定义任务） |
+| Quickfix 增强 | 增强版 Telescope quickfix（消息 + 代码上下文） | 随编译器输出而异 | 聚焦 CMake 输出；quickfix 非核心 | 依赖任务输出解析 |
+| Windows 细节 | PowerShell 引号、MSVC `cl`、路径兼容细节完善 | 取决于个人配置 | 支持 CMake/VS 环境；单文件运行非核心 | 取决于用户命令实现 |
+| 单插件工作流 | 单入口覆盖单/多文件、Make、CMake、调试 | 偏单文件 | 偏项目（CMake） | 元运行器；常与构建插件配合 |
+
 ## ✨ 特性
 
  - 🚀 **一键构建/运行（异步）**：`QuickCBuild`、`QuickCRun`、`QuickCBR`（构建并运行）
