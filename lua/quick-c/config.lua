@@ -1,6 +1,9 @@
 local C = {}
 
 C.defaults = {
+  -- 是否启用插件内置的 Telescope 增强（目标选择器、源文件选择器、quickfix 增强等）
+  -- 设为 false 可与 cmake-tools/overseer 等生态避免重叠
+  telescope_enhance = true,
   -- outdir 用于决定可执行文件与临时产物的输出位置：
   -- - "source": 写入到“当前源文件所在目录”（默认）
   -- - 其他字符串：自定义目录

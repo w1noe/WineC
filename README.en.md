@@ -1,4 +1,19 @@
 <div align="center"><p>
+Note:
+- When `make.enabled = false`, Make-related commands/keymaps are not created.
+- When `cmake.enabled = false`, CMake-related commands/keymaps are not created.
+- When `telescope_enhance = false`, Quickfix prefers native lists; Telescope-based pickers are not exposed.
+
+## 🤝 Coexistence with cmake-tools.nvim / overseer.nvim
+
+- To use cmake-tools as your primary CMake UI, disable Quick-c CMake/Telescope layers:
+  - `cmake.enabled = false`
+  - `telescope_enhance = false` (optional: keep Quickfix native and avoid Telescope pickers)
+- To use overseer as the task runner while keeping Quick-c single-file build/run:
+  - `make.enabled = false` (use overseer tasks for Make)
+  - Keep Quick-c core: build/run/debug for single or multi-file still work.
+- Keymaps respect these toggles; existing mappings won't be injected when the feature is disabled.
+
     <a href="https://github.com/AuroBreeze/quick-c/releases/latest">
       <img alt="Latest release" src="https://img.shields.io/github/v/release/AuroBreeze/quick-c?style=for-the-badge&logo=starship&color=C9CBFF&logoColor=D9E0EE&labelColor=302D41&include_prerelease&sort=semver" />
     </a>
@@ -306,6 +321,10 @@ Minimal example:
 
 ```lua
 require('quick-c').setup({
+  -- Optional modules: turn off to avoid overlap with other plugins
+  telescope_enhance = true,      -- disable to turn off built-in Telescope UIs (pickers/quickfix preview)
+  make = { enabled = true },     -- disable to hide Make commands/keymaps
+  cmake = { enabled = true },    -- disable to hide CMake commands/keymaps (pickers/build/configure)
   outdir = 'source',
   toolchain = {
     windows = { c = { 'gcc', 'cl' }, cpp = { 'g++', 'cl' } },

@@ -223,6 +223,21 @@ use({
 |  | `QuickCReload` | 重新加载配置 | — |
 |  | `QuickCConfig` | 打印生效配置与项目路径 | — |
 
+注：
+- 当 `make.enabled = false` 时，不创建 Make 相关命令/键位。
+- 当 `cmake.enabled = false` 时，不创建 CMake 相关命令/键位。
+- 当 `telescope_enhance = false` 时，Quickfix 优先使用原生命令，且不提供内置 Telescope 选择器。
+
+## 🤝 与 cmake-tools.nvim / overseer.nvim 协作
+
+- 若希望以 cmake-tools 为主的 CMake 交互界面：
+  - 将 `cmake.enabled = false`
+  - 可选：`telescope_enhance = false`（保持 quickfix 原生，避免 Telescope 选择器）
+- 若希望以 overseer 作为任务运行器，同时保留 quick-c 的单/多文件 Build/Run：
+  - 将 `make.enabled = false`（使用 overseer 任务来执行 make）
+  - quick-c 的单/多文件 Build/Run/Debug 仍可独立使用。
+- 键位会遵循这些开关；被关闭的功能不会注入默认映射。
+
 ## ⚙️ 配置
 
 Quick-c 支持多级配置，优先级从高到低为：
@@ -264,6 +279,10 @@ Quick-c 支持多级配置，优先级从高到低为：
 
 ```lua
 require("quick-c").setup({
+  -- 可选模块：与其他插件（cmake-tools/overseer）共存时，可关闭以避免重叠
+  telescope_enhance = true,      -- 设为 false 关闭内置 Telescope 增强（选择器/quickfix 预览）
+  make = { enabled = true },     -- 设为 false 不注入 Make 相关命令/键位
+  cmake = { enabled = true },    -- 设为 false 不注入 CMake 相关命令/键位（目标/构建/配置）
   outdir = "source", -- 或自定义路径，如 vim.fn.stdpath("data") .. "/quick-c-bin"
   toolchain = {
     windows = { c = { "gcc", "cl" }, cpp = { "g++", "cl" } },
