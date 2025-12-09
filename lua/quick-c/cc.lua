@@ -140,7 +140,7 @@ local function collect_sources_async(root, ignore_set, include_hidden, max_depth
           local path = current .. '/' .. name
           if t == 'directory' then
             if not ignore_set[name] then
-              if include_hidden or not name:match('^%.)' then
+              if include_hidden or not name:match('^%.') then
                 if (not max_depth) or (depth + 1 <= max_depth) then
                   queue[#queue + 1] = { path, depth + 1 }
                   dir_count = dir_count + 1
