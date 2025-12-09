@@ -1,5 +1,50 @@
 # Quick-c Release Notes
 
+## v1.6.1 (2025-12-09)
+
+### 新增
+- 目录/项目扫描异步化（非阻塞）：`QuickCCompileDBGenDir`、`QuickCCompileDBGenProject` 均改为异步分步遍历，避免卡主线程。
+- 进度提示（可配置节流）：扫描过程中周期性输出进度（文件/目录计数），默认每约 1200ms 一次。
+- 配置项：
+  - `compile_commands.ignore_dirs`（默认 `{ '.git','node_modules','.cache' }`）
+  - `compile_commands.include_hidden`（默认 `true`，遍历以“.”开头的目录）
+  - `compile_commands.progress_throttle_ms`（默认 `1200`）
+  - `compile_commands.max_depth`（默认 `4`；`nil` 表示不限制）
+
+### 改进
+- 统一体验：项目与目录两条路径使用相同异步扫描器与过滤策略，行为一致。
+- 可控深度：`max_depth` 限制递归层数（根为 0），大项目扫描更可控。
+- 按上下文写入：当 `outdir='source'` 时，生成位置按上下文决定：
+  - 单文件：写到“当前文件目录/compile_commands.json”
+  - 目录扫描：写到“所选目录/compile_commands.json”
+  - 全项目扫描：写到“项目根/compile_commands.json”
+
+### 使用建议
+1) 扫描全项目（异步）：`:QuickCCompileDBGenProject`
+2) 扫描目录（异步）：`:QuickCCompileDBGenDir [dir]`（支持含空格路径与目录补全）
+3) 配置示例：
+```lua
+require('quick-c').setup({
+  compile_commands = {
+    ignore_dirs = { '.git', '.cache', 'build', '.venv' },
+    include_hidden = false,
+    progress_throttle_ms = 1200,
+    max_depth = 4,
+  },
+})
+```
+
+### 验证建议
+1) 设置 `include_hidden=false`，确认 `.hidden/.deps` 等目录被跳过；开启后应被纳入。
+2) 设置 `max_depth=2`，确认仅扫描到二级子目录；提高后包含更深层文件。
+3) 调整 `progress_throttle_ms`（如 300/1200）观察进度提示频率变化。
+
+### 兼容性
+- 非破坏性变更；仅目录/项目扫描路径行为改进与增强。
+
+### 迁移指南
+- 无需迁移；如需更细过滤，请在 `ignore_dirs` 中补充目录名。
+
 ## v1.6.0 (2025-12-04)
 
 ### 新增
