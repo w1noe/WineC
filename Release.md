@@ -1,6 +1,6 @@
 # Quick-c Release Notes
 
-## v1.6.1 (2025-12-09)
+## v1.6.1 (2025-12-11)
 
 ### 新增
 - 目录/项目扫描异步化（非阻塞）：`QuickCCompileDBGenDir`、`QuickCCompileDBGenProject` 均改为异步分步遍历，避免卡主线程。
