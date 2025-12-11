@@ -83,6 +83,88 @@ local function copy_file(src, dst)
   return vim.fn.writefile(data, dst) == 0
 end
 
+local function collect_sources_recursive(root, ignore_set)
+  local uv = vim.loop
+  local results = {}
+  local function scan(dir)
+    local fs = uv.fs_scandir(dir)
+    if not fs then return end
+    while true do
+      local name, t = uv.fs_scandir_next(fs)
+      if not name then break end
+      local path = dir .. '/' .. name
+      if t == 'directory' then
+        if not ignore_set[name] then
+          scan(path)
+        end
+      else
+        local ext = (name:match('%.([%w]+)$') or ''):lower()
+        if ext == 'c' or ext == 'cpp' or ext == 'cc' or ext == 'cxx' then
+          table.insert(results, path)
+        end
+      end
+    end
+  end
+  scan(root)
+  return results
+end
+
+local function collect_sources_async(root, ignore_set, include_hidden, max_depth, on_progress, on_done)
+  local uv = vim.loop
+  local queue = { { root, 0 } }
+  local results = {}
+  local scanners = {}
+  local dir_count, file_count = 0, 0
+  local function step()
+    local budget = 600
+    while budget > 0 do
+      local item = queue[#queue]
+      local current, depth = nil, 0
+      if item then current, depth = item[1], item[2] or 0 end
+      if not current then
+        on_done(results)
+        return
+      end
+      local fs = scanners[current]
+      if not fs then
+        fs = uv.fs_scandir(current)
+        scanners[current] = fs or false
+        if not fs then
+          queue[#queue] = nil
+        end
+      else
+        local name, t = uv.fs_scandir_next(fs)
+        if not name then
+          queue[#queue] = nil
+        else
+          local path = current .. '/' .. name
+          if t == 'directory' then
+            if not ignore_set[name] then
+              if include_hidden or not name:match('^%.') then
+                if (not max_depth) or (depth + 1 <= max_depth) then
+                  queue[#queue + 1] = { path, depth + 1 }
+                  dir_count = dir_count + 1
+                end
+              end
+            end
+          else
+            local ext = (name:match('%.([%w]+)$') or ''):lower()
+            if ext == 'c' or ext == 'cpp' or ext == 'cc' or ext == 'cxx' then
+              results[#results + 1] = path
+              file_count = file_count + 1
+            end
+          end
+          budget = budget - 1
+        end
+      end
+      if budget <= 0 then break end
+    end
+    if on_progress then on_progress(file_count, dir_count) end
+    vim.defer_fn(step, 1)
+  end
+  step()
+end
+
 function CC.generate(config, notify)
   local ft = vim.bo.filetype
   if ft ~= 'c' and ft ~= 'cpp' then
@@ -239,23 +321,37 @@ end
 -- Non-CMake: scan project for sources and generate
 function CC.generate_for_project(config, notify)
   local cwd = vim.fn.getcwd()
-  local patterns = { '**/*.c', '**/*.cpp', '**/*.cc', '**/*.cxx' }
-  local seen, sources = {}, {}
-  for _, pat in ipairs(patterns) do
-    local list = vim.fn.glob(pat, true, true)
-    for _, f in ipairs(list) do
-      local p = vim.fn.fnamemodify(f, ':p')
-      if vim.fn.filereadable(p) == 1 and not seen[p] then
-        seen[p] = true
-        table.insert(sources, p)
+  local ccfg = config.compile_commands or {}
+  local ignores = {}
+  for _, v in ipairs(ccfg.ignore_dirs or { '.git', 'node_modules', '.cache' }) do ignores[v] = true end
+  local include_hidden = ccfg.include_hidden ~= false
+  local max_depth = ccfg.max_depth
+  local throttle = tonumber(ccfg.progress_throttle_ms) or 600
+  local last = 0
+  collect_sources_async(cwd, ignores, include_hidden, max_depth, function(files, dirs)
+    local uv = vim.loop
+    if uv and uv.now then
+      local now = uv.now()
+      if now - (last or 0) >= throttle then
+        notify.info(string.format('Scanning project: %d files, %d dirs', files or 0, dirs or 0))
+        last = now
       end
     end
-  end
-  if #sources == 0 then
-    notify.warn 'No C/C++ sources found under project root'
-    return
-  end
-  CC.generate_for_sources(config, notify, sources)
+  end, function(list)
+    local seen, sources = {}, {}
+    for _, p in ipairs(list) do
+      local abs = vim.fn.fnamemodify(p, ':p')
+      if vim.fn.filereadable(abs) == 1 and not seen[abs] then
+        seen[abs] = true
+        sources[#sources + 1] = abs
+      end
+    end
+    if #sources == 0 then
+      notify.warn 'No C/C++ sources found under project root'
+      return
+    end
+    CC.generate_for_sources(config, notify, sources)
+  end)
 end
 
 -- Non-CMake: generate for all sources under a specified directory
@@ -270,24 +366,42 @@ function CC.generate_for_dir(config, notify, dir)
     notify.err('Not a directory: ' .. tostring(dir))
     return
   end
-  local patterns = { '**/*.c', '**/*.cpp', '**/*.cc', '**/*.cxx' }
-  local seen, sources = {}, {}
-  for _, pat in ipairs(patterns) do
-    -- Use globpath to search inside the specified directory recursively
-    local list = vim.fn.globpath(dir, pat, true, true)
-    for _, f in ipairs(list) do
-      local p = vim.fn.fnamemodify(f, ':p')
-      if vim.fn.filereadable(p) == 1 and not seen[p] then
-        seen[p] = true
-        table.insert(sources, p)
+  local ccfg = config.compile_commands or {}
+  local ignores = {}
+  for _, v in ipairs(ccfg.ignore_dirs or { '.git', 'node_modules', '.cache' }) do ignores[v] = true end
+  local include_hidden = ccfg.include_hidden ~= false
+  local max_depth = ccfg.max_depth
+  local throttle = tonumber(ccfg.progress_throttle_ms) or 600
+  local last = 0
+  collect_sources_async(dir, ignores, include_hidden, max_depth, function(files, dirs)
+    local uvn = vim.loop
+    if uvn and uvn.now then
+      local now = uvn.now()
+      if now - (last or 0) >= throttle then
+        notify.info(string.format('Scanning dir: %d files, %d dirs', files or 0, dirs or 0))
+        last = now
       end
     end
-  end
-  if #sources == 0 then
-    notify.warn('No C/C++ sources found under: ' .. dir)
-    return
-  end
-  CC.generate_for_sources(config, notify, sources)
+  end, function(list)
+    local seen, sources = {}, {}
+    for _, p in ipairs(list) do
+      local abs = vim.fn.fnamemodify(p, ':p')
+      if vim.fn.filereadable(abs) == 1 and not seen[abs] then
+        seen[abs] = true
+        sources[#sources + 1] = abs
+      end
+    end
+    if #sources == 0 then
+      notify.warn('No C/C++ sources found under: ' .. dir)
+      return
+    end
+    local cfg = vim.tbl_deep_extend('force', {}, config)
+    cfg.compile_commands = cfg.compile_commands or {}
+    if cfg.compile_commands.outdir == 'source' then
+      cfg.compile_commands.outdir = dir
+    end
+    CC.generate_for_sources(cfg, notify, sources)
+  end)
 end
 
 return CC

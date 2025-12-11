@@ -66,6 +66,10 @@ C.defaults = {
     --   相对路径 : 相对 :pwd
     --   绝对路径 : 例如 'C:/proj/compile_commands'
     outdir = 'source',
+    ignore_dirs = { '.git', 'node_modules', '.cache' },
+    include_hidden = true,
+    progress_throttle_ms = 1200,
+    max_depth = 4,
     -- 当 mode = 'use' 时，从此路径复制 compile_commands.json
     use_path = nil,
   },
