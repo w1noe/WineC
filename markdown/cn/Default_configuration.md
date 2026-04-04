@@ -44,8 +44,10 @@
           -- 预设命令（推荐使用列表形式以避免 shell 解析问题）：
           -- 必须使用完整的编译命令，这不是追加参数
           -- 允许占位符：{sources} {out} {cc} {ft}
-          -- 例如：{ 'gcc', '-g', '-O0', '{sources}', '-o', '{out}' }
-          presets = {},
+          presets = {
+            { name = "Debug", cmd = { "gcc", "-g", "-O0", "{sources}", "-o", "{out}" } },
+            { name = "ASan",  cmd = { "gcc", "-g", "-O0", "-fsanitize=address", "{sources}", "-o", "{out}" } },
+          },
           -- 自定义输入的默认模板（字符串或数组）。
           -- 这是弹窗后的追加命令
           default = nil,
