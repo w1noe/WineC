@@ -131,6 +131,22 @@ local function scandir_files(dir)
   return out
 end
 
+local function expand_template_str(tmpl, vars)
+  local s = tostring(tmpl or '')
+  s = s:gsub('%%{sources%%}', '{sources}')
+  s = s:gsub('%%{out%%}', '{out}')
+  s = s:gsub('%%{cc%%}', '{cc}')
+  s = s:gsub('%%{ft%%}', '{ft}')
+  s = s:gsub('{out}', vars.out)
+  s = s:gsub('{cc}', vars.cc)
+  s = s:gsub('{ft}', vars.ft)
+  if s:find('{sources}', 1, true) then
+    local src = table.concat(vars.sources or {}, ' ')
+    s = s:gsub('{sources}', src)
+  end
+  return s
+end
+
 -- Async parallel BFS to discover candidate executables
 local function discover_candidates_async(config, is_win, start_dir, cb)
   local dbg = (config.debug or {})
@@ -429,6 +445,26 @@ local function clone_list(t)
   return o
 end
 
+local function add_preset_entry(entries, preset, idx)
+  local disp = nil
+  local value = preset
+  if type(preset) == 'table' then
+    if preset.name ~= nil and preset.cmd ~= nil then
+      disp = tostring(preset.name)
+      value = preset.cmd
+    elseif preset.display ~= nil and preset.cmd ~= nil then
+      disp = tostring(preset.display)
+      value = preset.cmd
+    else
+      disp = table.concat(preset, ' ')
+      value = preset
+    end
+  else
+    disp = tostring(preset)
+  end
+  table.insert(entries, { display = disp, kind = 'preset', value = value, idx = idx })
+end
+
 local function project_key()
   local root = vim.fn.getcwd()
   return require('quick-c.util').norm(root)
@@ -453,14 +489,17 @@ local function choose_user_compile_cmd_async(config, is_win, ft, sources, exe, b
   local entries = {}
   table.insert(entries, { display = '[Use built-in]', kind = 'builtin' })
   table.insert(entries, { display = '[Custom args...]', kind = 'args' })
-  for idx, p in ipairs(presets) do
-    local disp
-    if type(p) == 'table' then
-      disp = table.concat(p, ' ')
+  if type(presets) == 'table' then
+    local n = #presets
+    if n > 0 then
+      for idx, p in ipairs(presets) do
+        add_preset_entry(entries, p, idx)
+      end
     else
-      disp = tostring(p)
+      for k, p in pairs(presets) do
+        add_preset_entry(entries, p, k)
+      end
     end
-    table.insert(entries, { display = disp, kind = 'preset', value = p, idx = idx })
   end
   local function finalize(choice)
     if not choice then
@@ -473,13 +512,22 @@ local function choose_user_compile_cmd_async(config, is_win, ft, sources, exe, b
     end
     if choice.kind == 'preset' then
       local tmpl = choice.value
-      if type(tmpl) ~= 'table' then
-        -- string template unsupported for robust argv; fall back to builtin
-        cb(clone_list(builtin_cmd))
+      if type(tmpl) == 'table' then
+        local argv = expand_template_argv(tmpl, { sources = sources, out = exe, cc = cc or '', ft = ft })
+        cb(argv)
         return
       end
-      local argv = expand_template_argv(tmpl, { sources = sources, out = exe, cc = cc or '', ft = ft })
-      cb(argv)
+      if type(tmpl) == 'string' then
+        local expanded = expand_template_str(tmpl, { sources = sources, out = exe, cc = cc or '', ft = ft })
+        local argv = vim.fn.split(expanded)
+        if argv and #argv > 0 then
+          cb(argv)
+        else
+          cb(clone_list(builtin_cmd))
+        end
+        return
+      end
+      cb(clone_list(builtin_cmd))
       return
     end
     if choice.kind == 'args' then
