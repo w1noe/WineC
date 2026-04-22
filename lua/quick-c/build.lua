@@ -875,6 +875,10 @@ function B.debug_run(config, notify, exe)
       end
       local ok_t, telescope = pcall(require, 'telescope')
       if ok_t then
+        if is_running then
+            return
+        end
+        is_running = true
         local pickers = require 'telescope.pickers'
         local finders = require 'telescope.finders'
         local conf = require('telescope.config').values
@@ -883,7 +887,7 @@ function B.debug_run(config, notify, exe)
           local rel = vim.fn.fnamemodify(p, ':.')
           table.insert(entries, { display = rel, value = p, ordinal = rel })
         end
-        pickers
+        local debug_picker = pickers
           .new({}, {
             prompt_title = 'Select executable to debug',
             finder = finders.new_table {
@@ -906,7 +910,12 @@ function B.debug_run(config, notify, exe)
               return true
             end,
           })
-          :find()
+          --vim.notify("Start waiting")
+          vim.cmd('sleep 50ms')
+          --vim.notify("End waiting")
+          debug_picker:find()
+          -- vim.notify("After window")
+          is_running = false
         return
       end
       local ui = vim.ui or {}
