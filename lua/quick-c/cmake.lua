@@ -221,7 +221,7 @@ local function resolve_root_async(config, base_dir, cb)
 end
 
 local function build_dir_for(config, root)
-  local b = (config.cmake and config.cmake.build_dir) or config.compile_commands.find_dir or 'build'
+  local b = (config.cmake and config.cmake.build_dir) or 'build'
   if not b or b == '' then
     b = 'build'
   end
